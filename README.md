@@ -9,15 +9,13 @@ Note this is basically just a proof of concept/toy right now.
 
 # Roadmap
 
-1. Support multiple classes per lib
+1. Implement dataclass methods
 
-2. Decide on what Python class to use/implement (dataclasses? normal class? attrs??)
+2. `json` module compatibility
 
-3. `json` module compatibility
+3. Benchmark and optimize
 
-4. Benchmark and optimize
-
-5. Support more than JSON??
+4. Support more than JSON??
 
 # Usage
 
