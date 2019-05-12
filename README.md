@@ -9,17 +9,15 @@ Note this is basically just a proof of concept/toy right now.
 
 # Roadmap
 
-1. Allow attribute access and initialization of class
+1. Support multiple classes per lib
 
-2. Support multiple classes per lib
+2. Decide on what Python class to use/implement (dataclasses? normal class? attrs??)
 
-3. Decide on what Python class to use/implement (dataclasses? normal class? attrs??)
+3. `json` module compatibility
 
-4. `json` module compatibility
+4. Benchmark and optimize
 
-5. Benchmark and optimize
-
-6. Support more than JSON??
+5. Support more than JSON??
 
 # Usage
 
