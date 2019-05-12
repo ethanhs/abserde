@@ -7,6 +7,7 @@ from abserde.config import Config
 __all__ = ['parse_stub']
 
 LIB_USES = '''
+#![feature(specialization)]
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use pyo3::exceptions;
@@ -55,15 +56,12 @@ DUNDER_STR = '''
 '''
 
 DUNDER_BYTES = '''
-    fn __bytes__(&self) -> PyResult<PyBytes> {
+    fn __bytes__(&self) -> PyResult<PyObject> {
         let gil = GILGuard::acquire();
-
-        let bytes = match serde_json::to_vec(&self) {
-            Ok(v) => v,
+        match serde_json::to_vec(&self) {
+            Ok(v) => Ok(PyBytes::new(gil.python(), &v).into()),
             Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
-        };
-
-        Ok(PyBytes::new(gil.python(), &bytes).into())
+        }
     }
 '''
 
@@ -187,8 +185,7 @@ class StubVisitor(NodeVisitor):
         self.writeline('}')
         self.write(OBJECT_PROTO.format(name=n.name))
         self.write(DUNDER_STR)
-        # TODO: figure out why this causes a conflicting impl
-        #self.write(DUNDER_BYTES)
+        self.write(DUNDER_BYTES)
         repr_args = ', '.join(f'{name}: {{{name}:#?}}' for name in attributes)
         names = ', '.join(f'{name} = self.{name}' for name in attributes)
         self.write(DUNDER_REPR.format(name=n.name, args=repr_args, attrs=names))
