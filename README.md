@@ -9,8 +9,6 @@ Note this is basically just a proof of concept/toy right now.
 
 # Roadmap
 
-0. Figure out license
-
 1. Allow attribute access and initialization of class
 
 2. Support multiple classes per lib
@@ -21,6 +19,7 @@ Note this is basically just a proof of concept/toy right now.
 
 5. Benchmark and optimize
 
+6. Support more than JSON??
 
 # Usage
 
