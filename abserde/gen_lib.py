@@ -99,12 +99,28 @@ pub fn loads(s: &str) -> PyResult<Classes> {
 }
 '''
 
-DUMPS_IMPL = '''
-#[pyfunction]
-pub fn dumps(c: &Classes) -> PyResult<String> {
+DUMPS_IMPL_PREFIX = '''
+fn dumps_impl<T>(c: &T) -> PyResult<String> 
+where T: Serialize
+{
     match serde_json::to_string(c) {
         Ok(v) => Ok(v),
         Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
+    }
+}
+
+#[pyfunction]
+pub fn dumps(c: PyObject) -> PyResult<String> {
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+'''
+DUMPS_FOR_CLS = '''
+    if let Ok(o) = c.extract::<&{cls}>(py) {{
+        dumps_impl(o)
+    }}'''
+DUMPS_IMPL_SUFFIX = '''
+    else {
+        Err(exceptions::ValueError::py_err("Invalid type for dumps"))
     }
 }
 '''
@@ -158,6 +174,8 @@ class StubVisitor(NodeVisitor):
             except KeyError:
                 invalid_type(typ, container)
         else:
+            if typ in self.classes:
+                return typ
             try:
                 return f'{SIMPLE_TYPE_MAP[typ]}'
             except KeyError:
@@ -188,7 +206,9 @@ class StubVisitor(NodeVisitor):
             self.writeline(' ' * 4 + f'{cls}Class({cls}),')
         self.writeline('}')
         self.write(LOADS_IMPL)
-        self.write(DUMPS_IMPL)
+        self.write(DUMPS_IMPL_PREFIX)
+        self.write(' else '.join(DUMPS_FOR_CLS.format(cls=cls) for cls in self.classes))
+        self.write(DUMPS_IMPL_SUFFIX)
         self.write(MODULE_PREFIX.format(module=module))
         for cls in self.classes:
             self.writeline(' ' * 4 + f'm.add_class::<{cls}>()?;')
