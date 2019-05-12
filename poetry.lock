@@ -6,9 +6,18 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 version = "7.0"
 
+[[package]]
+category = "main"
+description = "Build and publish crates with pyo3, rust-cpython and cffi bindings as well as rust binaries as python packages"
+name = "pyo3-pack"
+optional = false
+python-versions = "*"
+version = "0.5.0"
+
 [metadata]
-content-hash = "60918c6ecb9b15c603fbd7cab12c998e02445a35c75384d858926c45c1493316"
+content-hash = "4c1fdf2f212d4e6f2b3c5bbd7b685995e747c180d9a61aac8e2208331496d43c"
 python-versions = "^3.7"
 
 [metadata.hashes]
 click = ["2335065e6395b9e67ca716de5f7526736bfa6ceead690adf616d925bdc622b13", "5b94b49521f6456670fdb30cd82a4eca9412788a93fa6dd6df72c94d5a8ff2d7"]
+pyo3-pack = ["1e08e8d197dc674dd35494a1aff97953d7eb16a745ca845541d812ded65b9eb9", "409f276e53cdeb5ec08a42f75c3b9473478aaaaedf329639700bc9fdf14e26d0", "4f0623f55b6680d53279d7e631e1165e2ddf9a246cdac404488e565dac466fe7", "7aac42bd0963782aa005bdd1fd9e4aa9bb75b01f4059d826f38631fbfa269b98", "f04e3386c9e2661fbdc08f987ef721d5f1a82ca14290a0fd81054325b8945b4d"]
