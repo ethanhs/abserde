@@ -71,30 +71,54 @@ DUNDER_REPR = '''
     }}
 '''
 
-MODULE = '''
+ENUM_IMPL_PREFIX = '''
+impl IntoPyObject for Classes {
+    fn into_object(self, py: Python) -> PyObject {
+        match self {
+'''
+
+ENUM_IMPL_SUFFIX = '''
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Classes {
+'''
+
+
+LOADS_IMPL = '''
 #[pyfunction]
-pub fn loads(s: &str) -> PyResult<{cls}> {{
-    match serde_json::from_str(s) {{
+pub fn loads(s: &str) -> PyResult<Classes> {
+    match serde_json::from_str(s) {
         Ok(v) => Ok(v),
         Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
-    }}
-}}
+    }
+}
+'''
 
+DUMPS_IMPL = '''
 #[pyfunction]
-pub fn dumps(c: &{cls}) -> PyResult<String> {{
-    match serde_json::to_string(c) {{
+pub fn dumps(c: &Classes) -> PyResult<String> {
+    match serde_json::to_string(c) {
         Ok(v) => Ok(v),
         Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
-    }}
-}}
+    }
+}
+'''
 
+MODULE_PREFIX = '''
 #[pymodule]
 fn {module}(_py: Python, m: &PyModule) -> PyResult<()> {{
-    m.add_class::<{cls}>()?;
+'''
+
+MODULE_SUFFIX = '''
     m.add_wrapped(wrap_pyfunction!(loads))?;
     m.add_wrapped(wrap_pyfunction!(dumps))?;
     Ok(())
-}}
+}
 '''
 
 SIMPLE_TYPE_MAP = {
@@ -156,7 +180,19 @@ class StubVisitor(NodeVisitor):
         self.write(LIB_USES)
         self.generic_visit(n)
         module = self.config.filename.replace('.py', '')
-        self.write(MODULE.format(module=module, cls=self.classes[0]))
+        self.write(ENUM_IMPL_PREFIX)
+        for cls in self.classes:
+            self.writeline(' ' * 12 + f'Classes::{cls}Class(v) => v.into_object(),')
+        self.write(ENUM_IMPL_SUFFIX)
+        for cls in self.classes:
+            self.writeline(' ' * 4 + f'{cls}Class,')
+        self.writeline('}')
+        self.write(LOADS_IMPL)
+        self.write(DUMPS_IMPL)
+        self.write(MODULE_PREFIX.format(module=module))
+        for cls in self.classes:
+            self.writeline(' ' * 4 + f'm.add_class::<{cls}>()?;')
+        self.write(MODULE_SUFFIX)
 
     def visit_ClassDef(self, n: ClassDef) -> None:
         # First, we write out the struct and its members
