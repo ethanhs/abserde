@@ -182,10 +182,10 @@ class StubVisitor(NodeVisitor):
         module = self.config.filename.replace('.py', '')
         self.write(ENUM_IMPL_PREFIX)
         for cls in self.classes:
-            self.writeline(' ' * 12 + f'Classes::{cls}Class(v) => v.into_object(),')
+            self.writeline(' ' * 12 + f'Classes::{cls}Class(v) => v.into_object(py),')
         self.write(ENUM_IMPL_SUFFIX)
         for cls in self.classes:
-            self.writeline(' ' * 4 + f'{cls}Class,')
+            self.writeline(' ' * 4 + f'{cls}Class({cls}),')
         self.writeline('}')
         self.write(LOADS_IMPL)
         self.write(DUMPS_IMPL)
