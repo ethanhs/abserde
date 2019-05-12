@@ -10,14 +10,67 @@ LIB_USES = '''
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use pyo3::exceptions;
+use pyo3::PyObjectProtocol;
+use pyo3::types::PyBytes;
 
 use serde::{Deserialize, Serialize};
 '''
 
-PYCLASS_PREFIX = '''
+STRUCT_PREFIX = '''
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct {name} {{
+'''
+
+PYCLASS_PREFIX = '''
+#[pymethods]
+impl {name} {{
+'''
+
+IMPL_NEW_PREFIX = '''
+    #[new]
+    fn new(obj: &PyRawObject, {args}) {{
+        obj.init({{
+            {name} {{
+'''
+
+IMPL_NEW_SUFFIX = '''
+            }
+        });
+    }
+'''
+
+OBJECT_PROTO = '''
+#[pyproto]
+impl<'p> PyObjectProtocol<'p> for {name} {{
+'''
+
+DUNDER_STR = '''
+    fn __str__(&self) -> PyResult<String> {
+        match serde_json::to_string(&self) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
+        }
+    }
+'''
+
+DUNDER_BYTES = '''
+    fn __bytes__(&self) -> PyResult<PyBytes> {
+        let gil = GILGuard::acquire();
+
+        let bytes = match serde_json::to_vec(&self) {
+            Ok(v) => v,
+            Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
+        };
+
+        Ok(PyBytes::new(gil.python(), &bytes).into())
+    }
+'''
+
+DUNDER_REPR = '''
+    fn __repr__(&self) -> PyResult<String> {{
+        Ok(format!("{name}({args})", {attrs}))
+    }}
 '''
 
 MODULE = '''
@@ -108,8 +161,10 @@ class StubVisitor(NodeVisitor):
         self.write(MODULE.format(module=module, cls=self.classes[0]))
 
     def visit_ClassDef(self, n: ClassDef) -> None:
-        self.write(PYCLASS_PREFIX.format(name=n.name))
+        # First, we write out the struct and its members
+        self.write(STRUCT_PREFIX.format(name=n.name))
         self.classes.append(n.name)
+        attributes: Dict[str, str] = {}
         for item in n.body:
             if isinstance(item, AnnAssign):
                 name = item.target.id
@@ -117,11 +172,27 @@ class StubVisitor(NodeVisitor):
                     annotation = self.convert(item.annotation.id)
                 elif isinstance(item.annotation, Subscript):
                     annotation = self.convert(item.annotation.slice.value.id, container=item.annotation.value.id)
-
+                attributes[name] = annotation
+                self.writeline(' '* 4 + '#[pyo3(get, set)]')
                 self.writeline(' ' * 4 + f'pub {name}: {annotation},')
         self.writeline('}')
 
-        # TODO: impl
+        # Then we write out the class implementation.
+        self.write(PYCLASS_PREFIX.format(name=n.name))
+        args = ', '.join(f'{name}: {typ}' for name, typ in attributes.items())
+        self.write(IMPL_NEW_PREFIX.format(args=args, name=n.name))
+        for name in attributes:
+            self.writeline(' '* 16 + f'{name}: {name},')
+        self.write(IMPL_NEW_SUFFIX)
+        self.writeline('}')
+        self.write(OBJECT_PROTO.format(name=n.name))
+        self.write(DUNDER_STR)
+        # TODO: figure out why this causes a conflicting impl
+        #self.write(DUNDER_BYTES)
+        repr_args = ', '.join(f'{name}: {{{name}:#?}}' for name in attributes)
+        names = ', '.join(f'{name} = self.{name}' for name in attributes)
+        self.write(DUNDER_REPR.format(name=n.name, args=repr_args, attrs=names))
+        self.writeline('}')
 
 
 def gen_bindings(src: str, config: Config) -> str:
