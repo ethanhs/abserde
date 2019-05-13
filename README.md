@@ -9,13 +9,11 @@ Note this is basically just a proof of concept/toy right now.
 
 # Roadmap
 
-1. Implement dataclass methods
+1. `json` module compatibility
 
-2. `json` module compatibility
+2. Benchmark and optimize
 
-3. Benchmark and optimize
-
-4. Support more than JSON??
+3. Support more than JSON??
 
 # Usage
 

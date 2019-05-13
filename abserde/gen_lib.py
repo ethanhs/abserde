@@ -1,4 +1,4 @@
-from ast import parse, NodeVisitor, Module, ClassDef, dump, AnnAssign, Name, Subscript
+from ast import parse, NodeVisitor, Module, ClassDef, dump, AnnAssign, Name, Subscript, FunctionDef
 
 from typing import Optional, NoReturn
 
@@ -13,6 +13,8 @@ use pyo3::wrap_pyfunction;
 use pyo3::exceptions;
 use pyo3::PyObjectProtocol;
 use pyo3::types::PyBytes;
+use pyo3::create_exception;
+use pyo3::PyMappingProtocol;
 
 use serde::{Deserialize, Serialize};
 '''
@@ -71,6 +73,34 @@ DUNDER_REPR = '''
     }}
 '''
 
+MAPPING_IMPL = '''
+#[pyproto]
+impl<'p> PyMappingProtocol<'p> for {name} {{
+    fn __len__(&'p self) -> PyResult<usize> {{
+        Ok({len}usize)
+    }}
+
+    fn __getitem__(&'p self, key: String) -> PyResult<PyObject> {{
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        match key.as_ref() {{
+            {getitems}
+            &_ => Err(exceptions::AttributeError::py_err(format!("No such item {{}}", key))),
+        }}
+    }}
+
+    fn __setitem__(&'p mut self, key: String, value: PyObject) -> PyResult<()> {{
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        match key.as_ref() {{
+            {setitems}
+            &_ => Err(exceptions::AttributeError::py_err(format!("No such item {{}}", key))),
+        }}
+    }}
+
+}}
+'''
+
 ENUM_IMPL_PREFIX = '''
 impl IntoPyObject for Classes {
     fn into_object(self, py: Python) -> PyObject {
@@ -94,7 +124,7 @@ LOADS_IMPL = '''
 pub fn loads(s: &str) -> PyResult<Classes> {
     match serde_json::from_str(s) {
         Ok(v) => Ok(v),
-        Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
+        Err(e) => Err(JSONParseError::py_err(e.to_string()))
     }
 }
 '''
@@ -126,6 +156,9 @@ DUMPS_IMPL_SUFFIX = '''
 '''
 
 MODULE_PREFIX = '''
+
+create_exception!({module}, JSONParseError, exceptions::ValueError);
+
 #[pymodule]
 fn {module}(_py: Python, m: &PyModule) -> PyResult<()> {{
 '''
@@ -215,6 +248,12 @@ class StubVisitor(NodeVisitor):
         self.write(MODULE_SUFFIX)
 
     def visit_ClassDef(self, n: ClassDef) -> None:
+        decorators = n.decorator_list
+        if len(decorators) != 1 or not isinstance(decorators[0], Name) or decorators[0].id != 'abserde':
+            if self.config.debug:
+                print('Skipping class {n.name}')
+            self.generic_visit(n)
+            return
         # First, we write out the struct and its members
         self.write(STRUCT_PREFIX.format(name=n.name))
         self.classes.append(n.name)
@@ -239,10 +278,14 @@ class StubVisitor(NodeVisitor):
             self.writeline(' '* 16 + f'{name}: {name},')
         self.write(IMPL_NEW_SUFFIX)
         self.writeline('}')
+        getitem = ('\n' + ' ' * 12).join(f'"{name}" => Ok(self.{name}.to_object(py)),' for name in attributes)
+        setitem = ('\n' + ' ' * 12).join(f'"{name}" => Ok(self.{name} = value.extract(py).unwrap()),' for name in attributes)
+        self.write(MAPPING_IMPL.format(name=n.name, len=len(attributes), getitems=getitem, setitems=setitem))
+
         self.write(OBJECT_PROTO.format(name=n.name))
         self.write(DUNDER_STR)
         self.write(DUNDER_BYTES)
-        repr_args = ', '.join(f'{name}: {{{name}:#?}}' for name in attributes)
+        repr_args = ', '.join(f'{name}: {{{name}:?}}' for name in attributes)
         names = ', '.join(f'{name} = self.{name}' for name in attributes)
         self.write(DUNDER_REPR.format(name=n.name, args=repr_args, attrs=names))
         self.writeline('}')
