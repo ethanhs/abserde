@@ -1,6 +1,6 @@
 # Abserde
 
-Leveraging [serde](https://serde.rs/) to make fast JSON (or more? see #2 on the roadmap) serializers/deserializers for Python.
+Leveraging [serde](https://serde.rs/) to make fast JSON (or more? see #4 on the roadmap) serializers/deserializers for Python.
 
 The main idea is you feed in a Python stub declaring the interface you want from  and get a fast JSON parser implemented in Rust.
 
