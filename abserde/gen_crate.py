@@ -16,9 +16,7 @@ def generate_crate(mod: str, config: Config) -> None:
         shutil.copytree(template_dir, crate_dir)
         with open(crate_dir / "Cargo.toml.in") as c:
             src = c.read()
-            formatted = src.format(
-                file=crate_name, name=config.name, email=config.email
-            )
+            formatted = src.format(file=crate_name, name=config.name, email=config.email)
             if config.debug:
                 print("Cargo.toml:")
                 print(formatted)

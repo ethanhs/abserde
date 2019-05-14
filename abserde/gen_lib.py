@@ -314,8 +314,7 @@ class StubVisitor(NodeVisitor):
                     assert isinstance(item.annotation.slice, Index)
                     assert isinstance(item.annotation.slice.value, Name)
                     annotation = self.convert(
-                        item.annotation.slice.value.id,
-                        container=item.annotation.value.id,
+                        item.annotation.slice.value.id, container=item.annotation.value.id
                     )
                 attributes[name] = annotation
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
@@ -334,8 +333,7 @@ class StubVisitor(NodeVisitor):
             f'"{name}" => Ok(self.{name}.to_object(py)),' for name in attributes
         )
         setitem = ("\n" + " " * 12).join(
-            f'"{name}" => Ok(self.{name} = value.extract(py).unwrap()),'
-            for name in attributes
+            f'"{name}" => Ok(self.{name} = value.extract(py).unwrap()),' for name in attributes
         )
         self.write(
             MAPPING_IMPL.format(
