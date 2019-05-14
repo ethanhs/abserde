@@ -1,19 +1,21 @@
 # Abserde
 
-Leveraging [serde](https://serde.rs/) to make fast JSON serializers/deserializers for Python.
+Leveraging [serde](https://serde.rs/) to make fast JSON (or more? see #2 on the roadmap) serializers/deserializers for Python.
 
-The main idea is you feed in a Python stub and get a fast JSON parser implemented in Rust.
+The main idea is you feed in a Python stub declaring the interface you want from  and get a fast JSON parser implemented in Rust.
 
-Note this is basically just a proof of concept/toy right now.
+Note this is basically just an experiment right now, but I hope to make it production ready soon(tm).
 
 
 # Roadmap
 
-1. `json` module compatibility
+1. Benchmark and optimize
 
-2. Benchmark and optimize
+2. Write mypy plugin
 
-3. Support more than JSON??
+3. Write documentation
+
+999. Support more than JSON??
 
 # Usage
 
