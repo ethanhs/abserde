@@ -123,6 +123,11 @@ pub enum Classes {
 '''
 
 LOADS_IMPL = '''
+/// loads(s, /)
+/// --
+///
+/// Parse s into an abserde class.
+/// s can be a str, byte, or bytearray.
 #[pyfunction]
 pub fn loads<'a>(s: PyObject) -> PyResult<Classes> {
     let gil = Python::acquire_gil();
@@ -168,6 +173,11 @@ where T: Serialize
     }
 }
 
+/// dumps(s, /)
+/// --
+///
+/// Dump abserde class s into a str.
+/// For bytes, call bytes() on the object.
 #[pyfunction]
 pub fn dumps(c: PyObject) -> PyResult<String> {
     let gil = Python::acquire_gil();
