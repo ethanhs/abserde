@@ -6,15 +6,17 @@ authors = ["Ethan Smith <ethan@ethanhs.me>"]
 include = ["abserde/template_crate/**/*.*", "abserde/template_crate/src"]
 license = "Apache-2.0 OR MIT"
 [tool.poetry.dependencies]
-python = "^3.7"
+python = ">3.6"
 click = "^7.0"
 pyo3-pack = "^0.5"
 
-[tool.poetry.dev-depoetrypendencies]
+[tool.poetry.dev-dependencies]
 pytest = "^4.0"
 pytest-xdist = "^1.28"
-flake8 = "^3.7"
 mypy = "0.701"
+pre-commit = "^1.16"
+tox = "^3.10"
+
 
 [tool.poetry.plugins."console_scripts"]
 "abserde" = "abserde.main:main"
@@ -22,4 +24,3 @@ mypy = "0.701"
 [build-system]
 requires = ["poetry>=0.12"]
 build-backend = "poetry.masonry.api"
-
