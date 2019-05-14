@@ -12,9 +12,13 @@ use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use pyo3::exceptions;
 use pyo3::PyObjectProtocol;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyString};
 use pyo3::create_exception;
 use pyo3::PyMappingProtocol;
+use pyo3::ffi::Py_TYPE;
+use pyo3::types::PyType;
+use pyo3::AsPyPointer;
+use pyo3::types::IntoPyDict;
 
 use serde::{Deserialize, Serialize};
 '''
@@ -118,14 +122,39 @@ ENUM_IMPL_SUFFIX = '''
 pub enum Classes {
 '''
 
-
 LOADS_IMPL = '''
 #[pyfunction]
-pub fn loads(s: &str) -> PyResult<Classes> {
-    match serde_json::from_str(s) {
-        Ok(v) => Ok(v),
-        Err(e) => Err(JSONParseError::py_err(e.to_string()))
+pub fn loads<'a>(s: PyObject) -> PyResult<Classes> {
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+    if let Ok(string) = s.cast_as::<PyString>(py) {
+        match serde_json::from_slice(string.as_bytes()) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(JSONParseError::py_err(e.to_string()))
+        }
+    } else if let Ok(bytes) = s.cast_as::<PyBytes>(py) {
+        match serde_json::from_slice(bytes.as_bytes()) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(JSONParseError::py_err(e.to_string()))
+        }
+    } else {
+        let ty = unsafe {
+            let p = s.as_ptr();
+            let tp = Py_TYPE(p);
+            PyType::from_type_ptr(py, tp)
+        };
+        if ty.name() == "bytearray" {
+            let locals = [("bytesobj", s)].into_py_dict(py);
+            let bytes = py.eval("bytes(bytesobj)", None, Some(&locals))?.downcast_ref::<PyBytes>()?;
+            match serde_json::from_slice(bytes.as_bytes()) {
+                Ok(v) => Ok(v),
+                Err(e) => Err(JSONParseError::py_err(e.to_string()))
+            }
+        } else {
+            Err(exceptions::ValueError::py_err(format!("loads() takes only str, bytes, or bytearray, got {}", ty)))
+        }
     }
+    
 }
 '''
 
