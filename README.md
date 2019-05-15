@@ -21,7 +21,7 @@ Note this is basically just an experiment right now, but I hope to make it produ
 
 You need [poetry](https://github.com/sdispater/poetry#installation) for now until packages are built.
 
-You need [rust](https://rustup.rs/) to use this tool (but not for the final extension!)
+You need [rust nightly](https://rustup.rs/) to use this tool (but not for the final extension!)
 
 Then you can then
 ```
