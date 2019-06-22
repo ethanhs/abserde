@@ -19,14 +19,6 @@ repos:
       - id: end-of-file-fixer
       - id: file-contents-sorter
       - id: mixed-line-ending
-  - repo: https://github.com/ambv/black
-    rev: 19.3b0
-    hooks:
-      - id: black
-        # override until resolved: https://github.com/ambv/black/issues/402
-        files: \.pyi?$
-        types: []
-
   - repo: https://gitlab.com/pycqa/flake8
     rev: 3.7.7
     hooks:

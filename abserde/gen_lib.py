@@ -25,15 +25,56 @@ use pyo3::create_exception;
 use pyo3::PyMappingProtocol;
 use pyo3::ffi::Py_TYPE;
 use pyo3::types::PyType;
-use pyo3::AsPyPointer;
 use pyo3::types::IntoPyDict;
+use pyo3::AsPyPointer;
+use pyo3::ffi;
+use pyo3::type_object::PyTypeInfo;
 
 use serde::{Deserialize, Serialize};
+
+use std::ops::Deref;
+use std::fmt;
 """
 
 STRUCT_PREFIX = """
-#[pyclass]
-#[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
+#[allow(non_snake_case)]
+#[warn(unused_variables)]
+mod serde_py_{name} {{
+    use pyo3::prelude::*;
+    use serde::{{Serialize, Serializer, Deserialize, Deserializer}};
+    use crate::{name};
+
+    pub fn serialize<S>(obj: &Py<{name}>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {{
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let o = obj.as_ref(py);
+        o.serialize(serializer)
+    }}
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Py<{name}>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {{
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let o = {name}::deserialize(deserializer)?;
+        Ok(Py::new(py, o).unwrap())
+    }}
+
+}}
+
+impl AsPyPointer for {name} {{
+    fn as_ptr(&self) -> *mut ffi::PyObject {{
+        ref_to_ptr(self)
+    }}
+}}
+
+#[pyclass(subclass)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct {name} {{
 """
 
@@ -81,8 +122,20 @@ DUNDER_BYTES = """
 
 DUNDER_REPR = """
     fn __repr__(&self) -> PyResult<String> {{
+        let gil = GILGuard::acquire();
+        let py = gil.python();
         Ok(format!("{name}({args})", {attrs}))
     }}
+"""
+
+DISPLAY_IMPL = """
+impl fmt::Debug for {name} {{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {{
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        write!(f, "{{}}", format!("{name}({args})", {attrs}))
+    }}
+}}
 """
 
 MAPPING_IMPL = """
@@ -203,6 +256,12 @@ DUMPS_IMPL_SUFFIX = """
 """
 
 MODULE_PREFIX = """
+fn ref_to_ptr<T>(t: &T) -> *mut ffi::PyObject
+where
+    T: PyTypeInfo,
+{{
+    unsafe {{ (t as *const _ as *mut u8).offset(-T::OFFSET) as *mut _ }}
+}}
 
 create_exception!({module}, JSONParseError, exceptions::ValueError);
 
@@ -249,7 +308,7 @@ class StubVisitor(NodeVisitor):
                 invalid_type(typ, container)
         else:
             if typ in self.classes:
-                return typ
+                return f"Py<{typ}>"
             try:
                 return f"{SIMPLE_TYPE_MAP[typ]}"
             except KeyError:
@@ -317,10 +376,11 @@ class StubVisitor(NodeVisitor):
                         item.annotation.slice.value.id, container=item.annotation.value.id
                     )
                 attributes[name] = annotation
+                if annotation.startswith('Py<'):
+                    self.writeline(" " * 4 + f"#[serde(with = \"serde_py_{item.annotation.id}\")]")
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
                 self.writeline(" " * 4 + f"pub {name}: {annotation},")
         self.writeline("}")
-
         # Then we write out the class implementation.
         self.write(PYCLASS_PREFIX.format(name=n.name))
         args = ", ".join(f"{name}: {typ}" for name, typ in attributes.items())
@@ -344,10 +404,13 @@ class StubVisitor(NodeVisitor):
         self.write(OBJECT_PROTO.format(name=n.name))
         self.write(DUNDER_STR)
         self.write(DUNDER_BYTES)
-        repr_args = ", ".join(f"{name}: {{{name}:?}}" for name in attributes)
-        names = ", ".join(f"{name} = self.{name}" for name in attributes)
+        repr_args = ", ".join(f"{name}={{{name}:?}}" for name in attributes)
+        names = ", ".join(f"{name} = self.{name}" if not typ.startswith('Py<')
+                          else f"{name} = self.{name}.as_ref(py).deref()"
+                          for name, typ in attributes.items())
         self.write(DUNDER_REPR.format(name=n.name, args=repr_args, attrs=names))
         self.writeline("}")
+        self.write(DISPLAY_IMPL.format(name=n.name, args=repr_args, attrs=names))
 
 
 def gen_bindings(src: str, config: Config) -> str:
