@@ -31,5 +31,5 @@ poetry install
 And then
 
 ```
-poetry run abserde <your_stub.pyi>
+poetry run abserde examples/nested_example.pyi
 ```
