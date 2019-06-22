@@ -33,5 +33,3 @@ And then
 ```
 poetry run abserde <your_stub.pyi>
 ```
-
-Note for right now that previous wheels are removed from the `abserde_wheels/` directory each run.
