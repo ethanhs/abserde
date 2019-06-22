@@ -25,11 +25,21 @@ You need [rust nightly](https://rustup.rs/) to use this tool (but not for the fi
 
 Then you can then
 ```
-poetry install
+$ git clone https://github.com/ethanhs/abserde.git
+$ cd abserde
+$ poetry install
 ```
 
 And then
 
 ```
-poetry run abserde examples/nested_example.pyi
+$ cd examples/
+$ poetry run abserde nested_example.pyi
 ```
+
+You should find a wheel which you can install via:
+```
+$ pip install dist/nested_example-*.whl
+```
+
+You should now be able to import the `nested_example` module, which you can use to serialize and deserialize with Python.
