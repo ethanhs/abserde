@@ -43,3 +43,11 @@ $ pip install dist/nested_example-*.whl
 ```
 
 You should now be able to import the `nested_example` module, which you can use to serialize and deserialize with Python.
+
+# LICENSE
+
+Note that part of the generated code comes from PyO3, the binding library used to make the generated code usable from Python, thus the end product must be compatible with the Apache-2 license (see LICENSE-APACHE-2.0).
+
+# Thank you
+
+Thanks to the amazing efforts of the developers of Rust, Serde, and PyO3. Without any of these, this project would not be possible.
