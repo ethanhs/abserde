@@ -9,7 +9,7 @@ from abserde.config import Config
 def generate_crate(mod: str, config: Config) -> None:
     dir = Path.cwd() / "build" / "abserde"
     template_dir = Path(__file__).parent / "template_crate"
-    crate_name = config.filename.replace(".py", "")
+    crate_name = config.filename
     crate_dir = dir / crate_name
     copy_tree(str(template_dir), str(crate_dir))
     with open(crate_dir / "Cargo.toml.in") as c:

@@ -33,8 +33,7 @@ $ poetry install
 And then
 
 ```
-$ cd examples/
-$ poetry run abserde nested_example.pyi
+$ poetry run abserde examples/nested_example.pyi
 ```
 
 You should find a wheel which you can install via:

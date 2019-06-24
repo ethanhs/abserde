@@ -330,7 +330,7 @@ class StubVisitor(NodeVisitor):
         # TODO: multiple class support?
         self.write(LIB_USES)
         self.generic_visit(n)
-        module = self.config.filename.replace(".py", "")
+        module = self.config.filename
         self.write(ENUM_IMPL_PREFIX)
         for cls in self.classes:
             self.writeline(" " * 12 + f"Classes::{cls}Class(v) => v.into_object(py),")
