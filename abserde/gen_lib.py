@@ -1,4 +1,5 @@
 from ast import AnnAssign
+from ast import AST
 from ast import ClassDef
 from ast import Index
 from ast import Module
@@ -299,20 +300,21 @@ class StubVisitor(NodeVisitor):
         self.lib = ""
         self.classes: List[str] = []
 
-    def convert(self, typ: str, container: Optional[str] = None) -> str:
+    def convert(self, n: AST) -> str:
+        """Turn types like List[str] into types like Vec<String>"""
+        if isinstance(n, Name):
+            return self._convert_simple(n.id)
+        if isinstance(n, Subscript):
+            return f'{CONTAINER_TYPE_MAP[n.value.id]}<{self.convert(n.slice.value)}>'
+
+    def _convert_simple(self, typ: str) -> str:
         """Utility method to convert Python annotations to Rust types"""
-        if container is not None:
-            try:
-                return f"{CONTAINER_TYPE_MAP[container]}<{SIMPLE_TYPE_MAP[typ]}>"
-            except KeyError:
-                invalid_type(typ, container)
-        else:
-            if typ in self.classes:
-                return f"Py<{typ}>"
-            try:
-                return f"{SIMPLE_TYPE_MAP[typ]}"
-            except KeyError:
-                invalid_type(typ)
+        if typ in self.classes:
+            return f"Py<{typ}>"
+        try:
+            return f"{SIMPLE_TYPE_MAP[typ]}"
+        except KeyError:
+            invalid_type(typ)
 
     def generate_lib(self, n: Module) -> str:
         self.visit(n)
@@ -366,15 +368,7 @@ class StubVisitor(NodeVisitor):
             if isinstance(item, AnnAssign):
                 assert isinstance(item.target, Name)
                 name = item.target.id
-                if isinstance(item.annotation, Name):
-                    annotation = self.convert(item.annotation.id)
-                elif isinstance(item.annotation, Subscript):
-                    assert isinstance(item.annotation.value, Name)
-                    assert isinstance(item.annotation.slice, Index)
-                    assert isinstance(item.annotation.slice.value, Name)
-                    annotation = self.convert(
-                        item.annotation.slice.value.id, container=item.annotation.value.id
-                    )
+                annotation = self.convert(item.annotation)
                 attributes[name] = annotation
                 if annotation.startswith('Py<'):
                     self.writeline(" " * 4 + f"#[serde(with = \"serde_py_{item.annotation.id}\")]")
