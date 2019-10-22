@@ -8,10 +8,13 @@ edition = "2018"
 serde = {{ version = "1.0", features = ["derive"] }}
 serde_json = "1.0"
 libc = "0.2.53"
-
-[dependencies.pyo3]
-git = "https://github.com/ethanhs/pyo3.git"
+pyo3 = "0.7.0"
 
 [lib]
 name = "{file}"
 crate-type = ["cdylib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3

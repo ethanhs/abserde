@@ -33,15 +33,20 @@ $ poetry install
 And then
 
 ```
-$ poetry run abserde examples/nested_example.pyi
+$ poetry run abserde examples/nested.pyi
 ```
 
 You should find a wheel which you can install via:
 ```
-$ pip install dist/nested_example-*.whl
+$ poetry run pip install dist/nested-*.whl
 ```
 
-You should now be able to import the `nested_example` module, which you can use to serialize and deserialize with Python.
+And run Python in the environment with:
+```
+$ poetry run python
+```
+
+You should now be able to import the `nested` module, which you can use to serialize and deserialize with Python.
 
 # LICENSE
 
