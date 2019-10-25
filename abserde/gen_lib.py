@@ -153,38 +153,46 @@ ENUM_IMPL_SUFFIX = """
 pub enum Classes {
 """
 
-LOADS_IMPL = """
+LOADS_IMPL_PREFIX = """
+#[derive(Serialize, Deserialize, Clone)]
+struct Union {{
+    {union_attrs}
+}}
+
 /// loads(s, /)
 /// --
 ///
 /// Parse s into an abserde class.
 /// s can be a str, byte, or bytearray.
 #[pyfunction]
-pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {
-    let bytes = if let Ok(string) = s.cast_as::<PyString>(py) {
+pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {{
+    let bytes = if let Ok(string) = s.cast_as::<PyString>(py) {{
         Ok(string.as_bytes())
-    } else if let Ok(bytes) = s.cast_as::<PyBytes>(py) {
+    }} else if let Ok(bytes) = s.cast_as::<PyBytes>(py) {{
         Ok(bytes.as_bytes())
-    } else {
-        let ty = unsafe {
+    }} else {{
+        let ty = unsafe {{
             let p = s.as_ptr();
             let tp = Py_TYPE(p);
             PyType::from_type_ptr(py, tp)
-        };
-        if ty.name() == "bytearray" {
+        }};
+        if ty.name() == "bytearray" {{
             let locals = [("bytesobj", s)].into_py_dict(py);
             let bytes = py.eval("bytes(bytesobj)", None, Some(&locals))?.downcast_ref::<PyBytes>()?;
             Ok(bytes.as_bytes())
-        } else {
-            Err(exceptions::ValueError::py_err(format!("loads() takes only str, bytes, or bytearray, got {}", ty)))
-        }
-    }?;
-    match serde_json::from_slice(bytes) {
-        Ok(v) => Ok(v),
-        Err(e) => Err(JSONParseError::py_err(e.to_string()))
+        }} else {{
+            Err(exceptions::ValueError::py_err(format!("loads() takes only str, bytes, or bytearray, got {{}}", ty)))
+        }}
+    }}?;
+    match serde_json::from_slice::<Union>(bytes) {{
+"""  # noqa
+
+LOADS_IMPL_SUFFIX = """
+        Err(e) => Err(JSONParseError::py_err(e.to_string())),
+        _ => unreachable!(),
     }
 }
-"""  # noqa
+"""
 
 DUMPS_IMPL_PREFIX = """
 fn dumps_impl<T>(c: &T) -> PyResult<String>
@@ -359,6 +367,7 @@ class StubVisitor(NodeVisitor):
         self.config = config
         self.lib = ""
         self.classes: List[str] = []
+        self.classes_attrs: List[Dict[str, str]] = []
 
     def convert(self, n: AST) -> str:
         """Turn types like List[str] into types like Vec<String>"""
@@ -397,7 +406,25 @@ class StubVisitor(NodeVisitor):
         for cls in self.classes:
             self.writeline(" " * 4 + f"{cls}Class({cls}),")
         self.writeline("}")
-        self.write(LOADS_IMPL)
+        union = {}
+        for attrs in self.classes_attrs:
+            union.update(attrs)
+        union_attrs = [' ' * 4 + f'pub {name}: Option<{annotation}>,'
+                       for name, annotation in union.items()]
+        union_struct = '\n'.join(union_attrs)
+        self.write(LOADS_IMPL_PREFIX.format(union_attrs=union_struct))
+        names = set(union)
+        for cls, cls_attrs in zip(self.classes, self.classes_attrs):
+            self.write('Ok(Union {')
+            for attr in names:
+                if attr in cls_attrs:
+                    self.write(f'{attr}: Some({attr}), ')
+                else:
+                    self.write(f'{attr}: None, ')
+            unpacked = ', '.join([f'{name}: {name}' for name in cls_attrs])
+            self.write(f'}}) => Ok(Classes::{cls}Class({cls} {{ {unpacked} }})),')
+            self.writeline('')
+        self.writeline(LOADS_IMPL_SUFFIX)
         self.write(DUMPS_IMPL_PREFIX)
         self.write(" else ".join(DUMPS_FOR_CLS.format(cls=cls) for cls in self.classes))
         self.write(DUMPS_IMPL_SUFFIX)
@@ -421,7 +448,6 @@ class StubVisitor(NodeVisitor):
             return
         # First, we write out the struct and its members
         self.write(STRUCT_PREFIX.format(name=n.name))
-        self.classes.append(n.name)
         attributes: Dict[str, str] = {}
         for item in n.body:
             if isinstance(item, AnnAssign):
@@ -432,6 +458,8 @@ class StubVisitor(NodeVisitor):
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
                 self.writeline(" " * 4 + f"pub {name}: {annotation},")
         self.writeline("}")
+        self.classes.append(n.name)
+        self.classes_attrs.append(attributes)
         # Then we write out the class implementation.
         self.write(PYCLASS_PREFIX.format(name=n.name))
         args = ", ".join(f"{name}: {typ}" for name, typ in attributes.items())
