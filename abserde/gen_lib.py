@@ -1,7 +1,6 @@
 from ast import AnnAssign
 from ast import AST
 from ast import ClassDef
-from ast import Index
 from ast import Module
 from ast import Name
 from ast import NodeVisitor
@@ -17,19 +16,19 @@ from abserde.config import Config
 
 LIB_USES = """
 #![feature(specialization)]
+#[allow(unused_imports)]
+#[allow(unused_variables)]
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use pyo3::exceptions;
 use pyo3::PyObjectProtocol;
-use pyo3::types::{PyBytes, PyString};
+use pyo3::types::{PyBytes, PyType, IntoPyDict, PyString, PyAny};
 use pyo3::create_exception;
 use pyo3::PyMappingProtocol;
 use pyo3::ffi::Py_TYPE;
-use pyo3::types::PyType;
-use pyo3::types::IntoPyDict;
 use pyo3::AsPyPointer;
 use pyo3::ffi;
-use pyo3::type_object::PyTypeInfo;
+use pyo3::type_object::{PyTypeInfo, PyTypeCreate};
 
 use serde::{Deserialize, Serialize};
 
@@ -38,36 +37,6 @@ use std::fmt;
 """
 
 STRUCT_PREFIX = """
-#[allow(dead_code)]
-#[allow(non_snake_case)]
-#[warn(unused_variables)]
-mod serde_py_{name} {{
-    use pyo3::prelude::*;
-    use serde::{{Serialize, Serializer, Deserialize, Deserializer}};
-    use crate::{name};
-
-    pub fn serialize<S>(obj: &Py<{name}>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {{
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        let o = obj.as_ref(py);
-        o.serialize(serializer)
-    }}
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Py<{name}>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {{
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        let o = {name}::deserialize(deserializer)?;
-        Ok(Py::new(py, o).unwrap())
-    }}
-
-}}
-
 impl AsPyPointer for {name} {{
     fn as_ptr(&self) -> *mut ffi::PyObject {{
         ref_to_ptr(self)
@@ -191,19 +160,11 @@ LOADS_IMPL = """
 /// Parse s into an abserde class.
 /// s can be a str, byte, or bytearray.
 #[pyfunction]
-pub fn loads<'a>(s: PyObject) -> PyResult<Classes> {
-    let gil = Python::acquire_gil();
-    let py = gil.python();
-    if let Ok(string) = s.cast_as::<PyString>(py) {
-        match serde_json::from_slice(string.as_bytes()) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(JSONParseError::py_err(e.to_string()))
-        }
+pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {
+    let bytes = if let Ok(string) = s.cast_as::<PyString>(py) {
+        Ok(string.as_bytes())
     } else if let Ok(bytes) = s.cast_as::<PyBytes>(py) {
-        match serde_json::from_slice(bytes.as_bytes()) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(JSONParseError::py_err(e.to_string()))
-        }
+        Ok(bytes.as_bytes())
     } else {
         let ty = unsafe {
             let p = s.as_ptr();
@@ -213,15 +174,15 @@ pub fn loads<'a>(s: PyObject) -> PyResult<Classes> {
         if ty.name() == "bytearray" {
             let locals = [("bytesobj", s)].into_py_dict(py);
             let bytes = py.eval("bytes(bytesobj)", None, Some(&locals))?.downcast_ref::<PyBytes>()?;
-            match serde_json::from_slice(bytes.as_bytes()) {
-                Ok(v) => Ok(v),
-                Err(e) => Err(JSONParseError::py_err(e.to_string()))
-            }
+            Ok(bytes.as_bytes())
         } else {
             Err(exceptions::ValueError::py_err(format!("loads() takes only str, bytes, or bytearray, got {}", ty)))
         }
+    }?;
+    match serde_json::from_slice(bytes) {
+        Ok(v) => Ok(v),
+        Err(e) => Err(JSONParseError::py_err(e.to_string()))
     }
-
 }
 """  # noqa
 
@@ -241,9 +202,7 @@ where T: Serialize
 /// Dump abserde class s into a str.
 /// For bytes, call bytes() on the object.
 #[pyfunction]
-pub fn dumps(c: PyObject) -> PyResult<String> {
-    let gil = Python::acquire_gil();
-    let py = gil.python();
+pub fn dumps(c: PyObject, py: Python) -> PyResult<String> {
 """
 DUMPS_FOR_CLS = """
     if let Ok(o) = c.extract::<&{cls}>(py) {{
@@ -257,6 +216,107 @@ DUMPS_IMPL_SUFFIX = """
 """
 
 MODULE_PREFIX = """
+#[allow(dead_code)]
+#[allow(non_snake_case)]
+#[warn(unused_variables)]
+mod serde_py_wrapper {{
+    use pyo3::prelude::*;
+    use pyo3::type_object::{{PyTypeCreate, PyTypeInfo}};
+    use serde::{{Serialize, Serializer, Deserialize, Deserializer}};
+    pub fn serialize<S, T>(obj: &Py<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Serialize + PyTypeInfo,
+    {{
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let o = obj.as_ref(py);
+        o.serialize(serializer)
+    }}
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<Py<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: PyTypeCreate + PyTypeInfo + Deserialize<'de>,
+    {{
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let o = T::deserialize(deserializer)?;
+        Ok(Py::new(py, o).unwrap())
+    }}
+}}
+
+
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PyWrapper<T>
+where
+    T: Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
+{{
+    #[serde(bound(deserialize = "T: Deserialize<'de>"))]
+    #[serde(with = "serde_py_wrapper")]
+    inner: Py<T>,
+}}
+
+impl<T> PyWrapper<T>
+where
+    T: Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
+{{
+    fn new(p: Py<T>) -> Self {{
+        Self {{ inner: p }}
+    }}
+}}
+
+
+impl<T> Clone for PyWrapper<T>
+where
+    T: Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
+{{
+    fn clone(&self) -> Self {{
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        PyWrapper::new(self.inner.clone_ref(py))
+    }}
+}}
+
+impl<T> fmt::Debug for PyWrapper<T>
+where
+    T: Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
+{{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {{
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let o = self.inner.as_ref(py);
+        write!(f, "{{:?}}", o)
+    }}
+}}
+
+impl<T> IntoPyObject for PyWrapper<T>
+where
+    T: Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
+{{
+    fn into_object(self, py: Python) -> PyObject {{
+        self.inner.into_object(py)
+    }}
+}}
+
+impl<T> ToPyObject for PyWrapper<T>
+where
+    T: Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
+{{
+    fn to_object(&self, py: Python) -> PyObject {{
+        self.inner.to_object(py)
+    }}
+}}
+
+impl<'source, T> FromPyObject<'source> for PyWrapper<T>
+where
+    T: AsPyPointer + Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
+{{
+    fn extract(ob: &'source PyAny) -> PyResult<Self> {{
+        Ok(PyWrapper::new(ob.extract()?))
+    }}
+}}
+
 fn ref_to_ptr<T>(t: &T) -> *mut ffi::PyObject
 where
     T: PyTypeInfo,
@@ -277,7 +337,7 @@ MODULE_SUFFIX = """
 }
 """
 
-SIMPLE_TYPE_MAP = {"str": "String", "int": "i32", "bool": "bool"}
+SIMPLE_TYPE_MAP = {"str": "String", "int": "i64", "bool": "bool"}
 
 CONTAINER_TYPE_MAP = {"List": "Vec", "Optional": "Option"}
 
@@ -310,7 +370,7 @@ class StubVisitor(NodeVisitor):
     def _convert_simple(self, typ: str) -> str:
         """Utility method to convert Python annotations to Rust types"""
         if typ in self.classes:
-            return f"Py<{typ}>"
+            return f"PyWrapper<{typ}>"
         try:
             return f"{SIMPLE_TYPE_MAP[typ]}"
         except KeyError:
@@ -327,9 +387,6 @@ class StubVisitor(NodeVisitor):
         self.lib += s + "\n"
 
     def visit_Module(self, n: Module) -> None:
-        if self.config.debug:
-            print(f"Generated Rust for: {self.config.filename}")
-        # TODO: multiple class support?
         self.write(LIB_USES)
         self.generic_visit(n)
         module = self.config.filename
@@ -348,6 +405,8 @@ class StubVisitor(NodeVisitor):
         for cls in self.classes:
             self.writeline(" " * 4 + f"m.add_class::<{cls}>()?;")
         self.write(MODULE_SUFFIX)
+        if self.config.debug:
+            print(f"Generated Rust for: {self.config.filename}")
 
     def visit_ClassDef(self, n: ClassDef) -> None:
         decorators = n.decorator_list
@@ -370,8 +429,6 @@ class StubVisitor(NodeVisitor):
                 name = item.target.id
                 annotation = self.convert(item.annotation)
                 attributes[name] = annotation
-                if annotation.startswith('Py<'):
-                    self.writeline(" " * 4 + f"#[serde(with = \"serde_py_{item.annotation.id}\")]")
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
                 self.writeline(" " * 4 + f"pub {name}: {annotation},")
         self.writeline("}")
