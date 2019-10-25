@@ -13,10 +13,12 @@ pyo3-pack = "^0.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^4.0"
-pytest-xdist = "^1.28"
-mypy = "0.701"
+pytest-benchmark="^3.2"
+mypy = "0.740"
 pre-commit = "^1.16"
 tox = "^3.10"
+orjson = "^2.0"
+ujson = "1.35"
 
 [tool.poetry.plugins."console_scripts"]
 "abserde" = "abserde.main:main"
