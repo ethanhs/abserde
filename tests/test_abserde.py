@@ -20,7 +20,7 @@ except ImportError as e:
 )
 def test_multiclass_dumps_speed(benchmark):
     n = multiclass.Test(4211, 4)
-    benchmark(multiclass.dumps, n)
+    benchmark(n.dumps)
 
 @pytest.mark.benchmark(
     group="loads",
@@ -32,7 +32,7 @@ def test_multiclass_dumps_speed(benchmark):
 def test_multiclass_loads_speed(benchmark):
     n = multiclass.Test(4211, 4)
     s = multiclass.dumps(n)
-    benchmark(multiclass.loads, s)
+    benchmark(multiclass.Test.loads, s)
 
 @pytest.mark.benchmark(
     group="loads",

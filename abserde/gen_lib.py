@@ -7,6 +7,7 @@ from ast import NodeVisitor
 from ast import parse
 from ast import Subscript
 from typing import Dict
+from typing import Tuple
 from typing import List
 from typing import NoReturn
 from typing import Optional
@@ -28,7 +29,8 @@ use pyo3::PyMappingProtocol;
 use pyo3::ffi::Py_TYPE;
 use pyo3::AsPyPointer;
 use pyo3::ffi;
-use pyo3::type_object::{PyTypeInfo, PyTypeCreate};
+use pyo3::type_object::{PyTypeInfo};
+use pyo3::pyclass_slots::PyClassDict;
 
 use serde::{Deserialize, Serialize};
 
@@ -37,13 +39,15 @@ use std::fmt;
 """
 
 STRUCT_PREFIX = """
-impl AsPyPointer for {name} {{
-    fn as_ptr(&self) -> *mut ffi::PyObject {{
-        ref_to_ptr(self)
+
+impl<'source> pyo3::FromPyObject<'source> for {name} {{
+    fn extract(ob: &'source PyAny) -> pyo3::PyResult<{name}> {{
+        let cls: &{name} = pyo3::PyTryFrom::try_from(ob)?;
+        Ok(cls.clone())
     }}
 }}
 
-#[pyclass(subclass)]
+#[pyclass(dict)]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct {name} {{
 """
@@ -51,18 +55,29 @@ pub struct {name} {{
 PYCLASS_PREFIX = """
 #[pymethods]
 impl {name} {{
+    fn dumps(&self) -> PyResult<String> {{
+        dumps_impl(self)
+    }}
+
+    #[classmethod]
+    fn loads(_cls: &PyType, s: &PyString) -> PyResult<Self> {{
+        match serde_json::from_str::<{name}>(&s.to_string_lossy()) {{
+            Ok(v) => Ok(v),
+            Err(e) => Err(exceptions::ValueError::py_err(e.to_string())),
+        }}
+    }}
 """
 
 IMPL_NEW_PREFIX = """
     #[new]
-    fn new(obj: &PyRawObject, {args}) {{
-        obj.init({{
+    fn new({args}) -> Self {{
+        {{
             {name} {{
 """
 
 IMPL_NEW_SUFFIX = """
             }
-        });
+        }
     }
 """
 
@@ -114,7 +129,6 @@ impl<'p> PyMappingProtocol<'p> for {name} {{
     fn __len__(&'p self) -> PyResult<usize> {{
         Ok({len}usize)
     }}
-
     fn __getitem__(&'p self, key: String) -> PyResult<PyObject> {{
         let gil = GILGuard::acquire();
         let py = gil.python();
@@ -123,7 +137,6 @@ impl<'p> PyMappingProtocol<'p> for {name} {{
             &_ => Err(exceptions::AttributeError::py_err(format!("No such item {{}}", key))),
         }}
     }}
-
     fn __setitem__(&'p mut self, key: String, value: PyObject) -> PyResult<()> {{
         let gil = GILGuard::acquire();
         let py = gil.python();
@@ -132,13 +145,12 @@ impl<'p> PyMappingProtocol<'p> for {name} {{
             &_ => Err(exceptions::AttributeError::py_err(format!("No such item {{}}", key))),
         }}
     }}
-
 }}
 """
 
 ENUM_IMPL_PREFIX = """
-impl IntoPyObject for Classes {
-    fn into_object(self, py: Python) -> PyObject {
+impl IntoPy<PyObject> for Classes {
+    fn into_py(self, py: Python) -> PyObject {
         match self {
 """
 
@@ -167,7 +179,7 @@ struct Union {{
 #[pyfunction]
 pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {{
     let bytes = if let Ok(string) = s.cast_as::<PyString>(py) {{
-        Ok(string.as_bytes())
+        string.as_bytes()
     }} else if let Ok(bytes) = s.cast_as::<PyBytes>(py) {{
         Ok(bytes.as_bytes())
     }} else {{
@@ -224,6 +236,7 @@ DUMPS_IMPL_SUFFIX = """
 """
 
 MODULE_PREFIX = """
+/*
 #[allow(dead_code)]
 #[allow(non_snake_case)]
 #[warn(unused_variables)]
@@ -298,12 +311,12 @@ where
     }}
 }}
 
-impl<T> IntoPyObject for PyWrapper<T>
+impl<T> IntoPy<PyObject> for PyWrapper<T>
 where
     T: Serialize + fmt::Debug + PyTypeInfo + PyTypeCreate + Clone,
 {{
-    fn into_object(self, py: Python) -> PyObject {{
-        self.inner.into_object(py)
+    fn into_py(self, py: Python) -> PyObject {{
+        self.inner.into_py(py)
     }}
 }}
 
@@ -324,12 +337,13 @@ where
         Ok(PyWrapper::new(ob.extract()?))
     }}
 }}
+*/
 
-fn ref_to_ptr<T>(t: &T) -> *mut ffi::PyObject
+fn ref_to_ptr<T: pyo3::pyclass::PyClass>(t: &T) -> *mut ffi::PyObject
 where
     T: PyTypeInfo,
 {{
-    unsafe {{ (t as *const _ as *mut u8).offset(-T::OFFSET) as *mut _ }}
+    unsafe {{ (t as *const _ as *mut u8).offset(-T::Dict::OFFSET.unwrap()) as *mut _ }}
 }}
 
 create_exception!({module}, JSONParseError, exceptions::ValueError);
@@ -345,7 +359,7 @@ MODULE_SUFFIX = """
 }
 """
 
-SIMPLE_TYPE_MAP = {"str": "String", "int": "i64", "bool": "bool"}
+SIMPLE_TYPE_MAP = {"str": "String", "int": "i64", "bool": "bool", "float": "f64"}
 
 CONTAINER_TYPE_MAP = {"List": "Vec", "Optional": "Option"}
 
@@ -367,7 +381,7 @@ class StubVisitor(NodeVisitor):
         self.config = config
         self.lib = ""
         self.classes: List[str] = []
-        self.classes_attrs: List[Dict[str, str]] = []
+        self.classes_attrs: Set[Tuple[str, str]] = set()
 
     def convert(self, n: AST) -> str:
         """Turn types like List[str] into types like Vec<String>"""
@@ -379,7 +393,7 @@ class StubVisitor(NodeVisitor):
     def _convert_simple(self, typ: str) -> str:
         """Utility method to convert Python annotations to Rust types"""
         if typ in self.classes:
-            return f"PyWrapper<{typ}>"
+            return f"{typ}"
         try:
             return f"{SIMPLE_TYPE_MAP[typ]}"
         except KeyError:
@@ -401,22 +415,22 @@ class StubVisitor(NodeVisitor):
         module = self.config.filename
         self.write(ENUM_IMPL_PREFIX)
         for cls in self.classes:
-            self.writeline(" " * 12 + f"Classes::{cls}Class(v) => v.into_object(py),")
+            self.writeline(" " * 12 + f"Classes::{cls}Class(v) => v.into_py(py),")
         self.write(ENUM_IMPL_SUFFIX)
         for cls in self.classes:
             self.writeline(" " * 4 + f"{cls}Class({cls}),")
         self.writeline("}")
-        union = {}
+        union = set()
         for attrs in self.classes_attrs:
-            union.update(attrs)
+            union.add(attrs)
         union_attrs = [' ' * 4 + f'pub {name}: Option<{annotation}>,'
-                       for name, annotation in union.items()]
+                       for name, annotation in self.classes_attrs]
         union_struct = '\n'.join(union_attrs)
         self.write(LOADS_IMPL_PREFIX.format(union_attrs=union_struct))
         names = set(union)
         for cls, cls_attrs in zip(self.classes, self.classes_attrs):
             self.write('Ok(Union {')
-            for attr in names:
+            for attr, _ in names:
                 if attr in cls_attrs:
                     self.write(f'{attr}: Some({attr}), ')
                 else:
@@ -448,45 +462,45 @@ class StubVisitor(NodeVisitor):
             return
         # First, we write out the struct and its members
         self.write(STRUCT_PREFIX.format(name=n.name))
-        attributes: Dict[str, str] = {}
+        attributes: Set[Tuple[str, str]] = set()
         for item in n.body:
             if isinstance(item, AnnAssign):
                 assert isinstance(item.target, Name)
                 name = item.target.id
                 annotation = self.convert(item.annotation)
-                attributes[name] = annotation
+                self.classes_attrs.add((name, annotation))
+                attributes.add((name, annotation))
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
                 self.writeline(" " * 4 + f"pub {name}: {annotation},")
         self.writeline("}")
         self.classes.append(n.name)
-        self.classes_attrs.append(attributes)
         # Then we write out the class implementation.
         self.write(PYCLASS_PREFIX.format(name=n.name))
-        args = ", ".join(f"{name}: {typ}" for name, typ in attributes.items())
+        args = ", ".join(f"{name}: {typ}" for name, typ in attributes)
         self.write(IMPL_NEW_PREFIX.format(args=args, name=n.name))
-        for name in attributes:
+        for pair in attributes:
+            name = pair[0]
             self.writeline(" " * 16 + f"{name}: {name},")
         self.write(IMPL_NEW_SUFFIX)
         self.writeline("}")
         getitem = ("\n" + " " * 12).join(
-            f'"{name}" => Ok(self.{name}.to_object(py)),' for name in attributes
+            f'"{name}" => Ok(self.{name}.clone().into_py(py)),' for name, _ in attributes
         )
         setitem = ("\n" + " " * 12).join(
-            f'"{name}" => Ok(self.{name} = value.extract(py).unwrap()),' for name in attributes
+            f'"{name}" => Ok(self.{name} = value.extract(py).unwrap()),' for name, _ in attributes
         )
         self.write(
             MAPPING_IMPL.format(
                 name=n.name, len=len(attributes), getitems=getitem, setitems=setitem
             )
         )
-
         self.write(OBJECT_PROTO.format(name=n.name))
         self.write(DUNDER_STR)
         self.write(DUNDER_BYTES)
         repr_args = ", ".join(f"{name}={{{name}:?}}" for name in attributes)
         names = ", ".join(f"{name} = self.{name}" if not typ.startswith('Py<')
                           else f"{name} = self.{name}.as_ref(py).deref()"
-                          for name, typ in attributes.items())
+                          for name, typ in attributes)
         self.write(DUNDER_REPR.format(name=n.name, args=repr_args, attrs=names))
         self.writeline("}")
         self.write(DISPLAY_IMPL.format(name=n.name, args=repr_args, attrs=names))

@@ -8,7 +8,11 @@ edition = "2018"
 serde = {{ version = "1.0", features = ["derive"] }}
 serde_json = "1.0"
 libc = "0.2.53"
-pyo3 = "0.7.0"
+
+[dependencies.pyo3]
+git = "https://github.com/kngwyu/pyo3.git"
+branch = "pyclass-new-layout"
+features = ["extension-module"]
 
 [lib]
 name = "{file}"
