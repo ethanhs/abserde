@@ -113,6 +113,17 @@ python-versions = ">=2.7,!=3.0,!=3.1,!=3.2,!=3.3"
 version = "1.0.2"
 
 [[package]]
+category = "main"
+description = "Build and publish crates with pyo3, rust-cpython and cffi bindings as well as rust binaries as python packages"
+name = "maturin"
+optional = false
+python-versions = ">=3.5"
+version = "0.7.7"
+
+[package.dependencies]
+toml = ">=0.10.0,<0.11.0"
+
+[[package]]
 category = "dev"
 description = "More routines for operating on iterables, beyond itertools"
 marker = "python_version < \"3.8\" or python_version > \"2.7\""
@@ -244,14 +255,6 @@ python-versions = "*"
 version = "5.0.0"
 
 [[package]]
-category = "main"
-description = "Build and publish crates with pyo3, rust-cpython and cffi bindings as well as rust binaries as python packages"
-name = "pyo3-pack"
-optional = false
-python-versions = "*"
-version = "0.5.0"
-
-[[package]]
 category = "dev"
 description = "Python parsing module"
 name = "pyparsing"
@@ -329,7 +332,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 version = "1.14.0"
 
 [[package]]
-category = "dev"
+category = "main"
 description = "Python Library for Tom's Obvious, Minimal Language"
 name = "toml"
 optional = false
@@ -423,7 +426,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["pathlib2", "contextlib2", "unittest2"]
 
 [metadata]
-content-hash = "ac9a3d2d47aa20c2ea80440168470f7a410f9c70d98511b18a2522f2c09c7db5"
+content-hash = "acb537d67c5fce51d940c50e6cf27acb9f47b71af168a6fdea02bf9a36af4e38"
 python-versions = ">3.5"
 
 [metadata.hashes]
@@ -438,6 +441,7 @@ filelock = ["18d82244ee114f543149c66a6e0c14e9c4f8a1044b5cdaadd0f82159d6a6ff59", 
 identify = ["418f3b2313ac0b531139311a6b426854e9cbdfcfb6175447a5039aa6291d8b30", "8ad99ed1f3a965612dcb881435bf58abcfbeb05e230bb8c352b51e8eac103360"]
 importlib-metadata = ["bdd9b7c397c273bcc9a11d6629a38487cd07154fa255a467bf704cd2c258e359", "f17c015735e1a88296994c0697ecea7e11db24290941983b08c9feb30921e6d8"]
 importlib-resources = ["6e2783b2538bd5a14678284a3962b0660c715e5a0f10243fd5e00a4b5974f50b", "d3279fd0f6f847cced9f7acc19bd3e5df54d34f93a2e7bb5f238f81545787078"]
+maturin = ["2533c648aa8fa19f7a9d4f62282b4adce2f9c07c49f512005f92911be767555e", "4fd7fcf4e40e984274dc9caf80c08fa16a6c7c1f4ca1f694ba2ac3802b7340aa", "5e6390245a023cbdca39d9276035fdee4d892b44d3ab798ccf2c3443d87e3f98", "7f7f04de2acf379b1ff8993747f11bfb60760c69caf8c43414212cf7cc4b07ef", "87a3d9a94f9c3b8d3ecc57017cdae2b3f1e0f6bfc851509f0b53c2486f312dcc", "aa474d70630833349dac090306fd51a8af2df88080cea74ea4d831b40616ea41"]
 more-itertools = ["1a2a32c72400d365000412fe08eb4a24ebee89997c18d3d147544f70f5403b39", "c468adec578380b6281a114cb8a5db34eb1116277da92d7c46f904f0b52d3288"]
 mypy = ["0a9a45157e532da06fe56adcfef8a74629566b607fa2c1ac0122d1ff995c748a", "2c35cae79ceb20d47facfad51f952df16c2ae9f45db6cb38405a3da1cf8fc0a7", "4b9365ade157794cef9685791032521233729cb00ce76b0ddc78749abea463d2", "53ea810ae3f83f9c9b452582261ea859828a9ed666f2e1ca840300b69322c474", "634aef60b4ff0f650d3e59d4374626ca6153fcaff96ec075b215b568e6ee3cb0", "7e396ce53cacd5596ff6d191b47ab0ea18f8e0ec04e15d69728d530e86d4c217", "7eadc91af8270455e0d73565b8964da1642fe226665dd5c9560067cd64d56749", "7f672d02fffcbace4db2b05369142e0506cdcde20cea0e07c7c2171c4fd11dd6", "85baab8d74ec601e86134afe2bcccd87820f79d2f8d5798c889507d1088287bf", "87c556fb85d709dacd4b4cb6167eecc5bbb4f0a9864b69136a0d4640fdc76a36", "a6bd44efee4dc8c3324c13785a9dc3519b3ee3a92cada42d2b57762b7053b49b", "c6d27bd20c3ba60d5b02f20bd28e20091d6286a699174dfad515636cb09b5a72", "e2bb577d10d09a2d8822a042a23b8d62bc3b269667c9eb8e60a6edfa000211b1", "f97a605d7c8bc2c6d1172c2f0d5a65b24142e11a58de689046e62c2d632ca8c1"]
 mypy-extensions = ["090fedd75945a69ae91ce1303b5824f428daf5a028d2f6ab8a299250a846f15d", "2d82818f5bb3e369420cb3c4060a7970edba416647068eb4c5343488a6c604a8"]
@@ -449,7 +453,6 @@ pluggy = ["15b2acde666561e1298d71b523007ed7364de07029219b604cf808bfa1c765b0", "9
 pre-commit = ["8f48d8637bdae6fa70cc97db9c1dd5aa7c5c8bf71968932a380628c25978b850", "f92a359477f3252452ae2e8d3029de77aec59415c16ae4189bcfba40b757e029"]
 py = ["5e27081401262157467ad6e7f851b7aa402c5852dbcb3dae06768434de5752aa", "c20fdd83a5dbc0af9efd622bee9a5564e278f6380fffcacc43ba6f43db2813b0"]
 py-cpuinfo = ["2cf6426f776625b21d1db8397d3297ef7acfa59018f02a8779123f3190f18500"]
-pyo3-pack = ["1e08e8d197dc674dd35494a1aff97953d7eb16a745ca845541d812ded65b9eb9", "409f276e53cdeb5ec08a42f75c3b9473478aaaaedf329639700bc9fdf14e26d0", "4f0623f55b6680d53279d7e631e1165e2ddf9a246cdac404488e565dac466fe7", "7aac42bd0963782aa005bdd1fd9e4aa9bb75b01f4059d826f38631fbfa269b98", "f04e3386c9e2661fbdc08f987ef721d5f1a82ca14290a0fd81054325b8945b4d"]
 pyparsing = ["4c830582a84fb022400b85429791bc551f1f4871c33f23e44f353119e92f969f", "c342dccb5250c08d45fd6f8b4a559613ca603b57498511740e65cd11a2e7dcec"]
 pytest = ["19e8f75eac01dd3f211edd465b39efbcbdc8fc5f7866d7dd49fedb30d8adf339", "c77a5f30a90e0ce24db9eaa14ddfd38d4afb5ea159309bdd2dae55b931bc9324"]
 pytest-benchmark = ["01f79d38d506f5a3a0a9ada22ded714537bbdfc8147a881a35c1655db07289d9", "ad4314d093a3089701b24c80a05121994c7765ce373478c8f4ba8d23c9ba9528"]

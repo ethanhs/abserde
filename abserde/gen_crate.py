@@ -24,7 +24,7 @@ def generate_crate(mod: str, config: Config) -> None:
 
     with open(crate_dir / "src" / "lib.rs", "w+") as lib:
         lib.write(mod)
-    cmd = ["pyo3-pack", "build", "-i", sys.executable, "--manylinux", "1-unchecked"]
+    cmd = ["maturin", "build", "-i", sys.executable, "--manylinux", "1-unchecked"]
     env = os.environ.copy()
     if not config.debug:
         cmd.append("--release")
