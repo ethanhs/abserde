@@ -226,13 +226,6 @@ pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {{
     }}
 }}
 
-fn ref_to_ptr<T: pyo3::pyclass::PyClass>(t: &T) -> *mut ffi::PyObject
-where
-    T: PyTypeInfo,
-{{
-    unsafe {{ (t as *const _ as *mut u8).offset(-T::Dict::OFFSET.unwrap()) as *mut _ }}
-}}
-
 create_exception!({module}, JSONParseError, exceptions::ValueError);
 
 #[pymodule]
