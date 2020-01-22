@@ -1,8 +1,8 @@
+import os
 import subprocess
 import sys
 from distutils.dir_util import copy_tree
 from pathlib import Path
-import os
 
 from abserde.config import Config
 

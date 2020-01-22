@@ -6,13 +6,11 @@ from ast import Name
 from ast import NodeVisitor
 from ast import parse
 from ast import Subscript
-from typing import Dict
-from typing import Tuple
 from typing import List
 from typing import NoReturn
 from typing import Optional
-from typing import Sequence
 from typing import Set
+from typing import Tuple
 
 from abserde.config import Config
 
@@ -165,6 +163,7 @@ impl<'source> pyo3::FromPyObject<'source> for {name} {{
 """
 
 ENUM_DECL = """
+        {{Err(exceptions::ValueError::py_err("Could not convert object to any of {types}.")) }}
     }}
 }}
 
@@ -179,7 +178,7 @@ impl fmt::Debug for {name} {{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {{
         match self {{
 """
-        
+
 ENUM_IMPL_DEBUG_SUFFIX = """
         }
     }
@@ -325,7 +324,7 @@ create_exception!({module}, JSONParseError, exceptions::ValueError);
 
 #[pymodule]
 fn {module}(_py: Python, m: &PyModule) -> PyResult<()> {{
-"""
+"""  # noqa
 
 MODULE_SUFFIX = """
     m.add_wrapped(wrap_pyfunction!(loads))?;
@@ -334,7 +333,13 @@ MODULE_SUFFIX = """
 }
 """
 
-SIMPLE_TYPE_MAP = {"str": "String", "int": "i64", "bool": "bool", "float": "f64", "Any": "JsonValue"}
+SIMPLE_TYPE_MAP = {
+    "str": "String",
+    "int": "i64",
+    "bool": "bool",
+    "float": "f64",
+    "Any": "JsonValue"
+}
 
 CONTAINER_TYPE_MAP = {"List": "Vec", "Optional": "Option"}
 
@@ -349,6 +354,7 @@ def invalid_type(typ: str, container: Optional[str] = None) -> NoReturn:
     else:
         msg = f"The type {typ} is not valid."
     raise InvalidTypeError(msg)
+
 
 class ClassGatherer(NodeVisitor):
     classes: List[str]
@@ -365,11 +371,12 @@ class ClassGatherer(NodeVisitor):
                 if isinstance(item.annotation, Subscript):
                     typ = item.annotation
                     if typ.value.id == "Union":
-                        self.unions.add((n for n in typ.slice.value.elts))
+                        self.unions.add(n for n in typ.slice.value.elts)
 
     def run(self, n) -> Tuple[List[str], Set[Tuple[str, ...]]]:
         self.visit(n)
         return self.classes, self.unions
+
 
 class StubVisitor(NodeVisitor):
     def __init__(self, config: Config, classes: List[str], unions: Set[Tuple[str, ...]]):
@@ -415,10 +422,10 @@ class StubVisitor(NodeVisitor):
         self.write(ENUM_IMPL_SUFFIX.format(name=name))
         for elt in members:
             typ = elt.replace('<', '').replace('>', '')
-            self.writeline(f"if let Ok(t) = ob.extract::<{elt}>() {{ Ok({name}::{typ}Type(t)) }} else ")
+            self.writeline(f"""if let Ok(t) = ob.extract::<{elt}>() {{
+                                Ok({name}::{typ}Type(t)) }} else """)
         types = " ".join(members)
-        self.writeline(f'{{ Err(exceptions::ValueError::py_err("Could not convert object to any of {types}.")) }}')
-        self.writeline(ENUM_DECL.format(name=name))
+        self.writeline(ENUM_DECL.format(name=name, types=types))
         for elt in members:
             typ = elt.replace('<', '').replace('>', '')
             self.writeline("#[allow(non_camel_case_types)]\n" + " " * 4 + f"{typ}Type({elt}),")
