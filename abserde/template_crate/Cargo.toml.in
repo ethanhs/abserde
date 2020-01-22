@@ -10,8 +10,7 @@ serde_json = "1.0"
 libc = "0.2.53"
 
 [dependencies.pyo3]
-git = "https://github.com/kngwyu/pyo3.git"
-branch = "pyclass-new-layout"
+git = "https://github.com/pyo3/pyo3.git"
 features = ["extension-module"]
 
 [lib]
