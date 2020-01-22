@@ -28,9 +28,9 @@ use pyo3::create_exception;
 use pyo3::PyMappingProtocol;
 use pyo3::ffi::Py_TYPE;
 use pyo3::AsPyPointer;
-use pyo3::ffi;
-use pyo3::type_object::{PyTypeInfo};
-use pyo3::pyclass_slots::PyClassDict;
+use pyo3::type_object::PyTypeInfo;
+use pyo3::PyTryFrom;
+use pyo3::types::PyDict;
 
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,7 @@ STRUCT_PREFIX = """
 
 impl<'source> pyo3::FromPyObject<'source> for {name} {{
     fn extract(ob: &'source PyAny) -> pyo3::PyResult<{name}> {{
-        let cls: &{name} = pyo3::PyTryFrom::try_from(ob)?;
+        let cls: &{name} = PyTryFrom::try_from(ob)?;
         Ok(cls.clone())
     }}
 }}
@@ -226,6 +226,78 @@ pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {{
     }}
 }}
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(transparent)]
+pub struct JsonValue(serde_json::Value);
+
+impl fmt::Debug for JsonValue {{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {{
+        write!(f, "{{}}", self.0)
+    }}
+}}
+
+impl IntoPy<PyObject> for JsonValue {{
+    fn into_py(self, py: Python) -> PyObject {{
+        match self.0 {{
+            serde_json::Value::Null => py.None(),
+            serde_json::Value::Bool(b) => b.into_py(py),
+            serde_json::Value::Number(n) => {{
+                if n.is_i64() {{
+                    n.as_i64().unwrap().into_py(py)
+                }} else {{
+                    n.as_f64().unwrap().into_py(py)
+                }}
+            }},
+            serde_json::Value::String(s) => s.into_py(py),
+            serde_json::Value::Array(v) => {{
+                let vec: Vec<JsonValue> = v.iter().map(|i| JsonValue(i.clone()).into_py(py)).collect();
+                vec.into_py(py)
+            }},
+            serde_json::Value::Object(m) => {{
+                let d = PyDict::new(py);
+                for (k, v) in m.iter() {{
+                    let key = PyString::new(py, &*k);
+                    let value: PyObject = JsonValue(v.clone()).into_py(py);
+                    d.set_item(key, value).unwrap();
+                }}
+                d.into_py(py)
+            }}
+        }}
+    }}
+}}
+
+impl<'source> pyo3::FromPyObject<'source> for JsonValue {{
+    fn extract(ob: &'source PyAny) -> pyo3::PyResult<JsonValue> {{
+        if let Ok(s) = ob.extract::<String>() {{
+            Ok(JsonValue(serde_json::Value::String(s)))
+        }} else if let Ok(n) = ob.extract::<i64>() {{
+            Ok(JsonValue(serde_json::Value::Number(n.into())))
+        }} else if let Ok(f) = ob.extract::<f64>() {{
+            let flt = match serde_json::Number::from_f64(f) {{
+                Some(v) => Ok(v),
+                None => Err(JSONParseError::py_err("Cannot convert NaN or inf to JSON")),
+            }};
+            Ok(JsonValue(serde_json::Value::Number(flt?)))
+        }} else if let Ok(b) = ob.extract::<bool>() {{
+            Ok(JsonValue(serde_json::Value::Bool(b)))
+        }} else if let Ok(l) = ob.extract::<Vec<JsonValue>>() {{
+            Ok(JsonValue(serde_json::Value::Array(l.into_iter().map(|i| i.0).collect())))
+        }} else if let Ok(d) = ob.extract::<&PyDict>() {{
+            let mut m = serde_json::Map::with_capacity(d.len());
+            for (k, v) in d.iter() {{
+                let key: String = k.extract()?;
+                let value: JsonValue = v.extract()?;
+                m.insert(key, value.0);
+            }}
+            Ok(JsonValue(serde_json::Value::Object(m)))
+        }} else if ob.extract::<PyObject>()?.is_none() {{
+            Ok(JsonValue(serde_json::Value::Null))
+        }} else {{
+            Err(JSONParseError::py_err("Could not convert object to JSON"))
+        }}
+    }}
+}}
+
 create_exception!({module}, JSONParseError, exceptions::ValueError);
 
 #[pymodule]
@@ -239,7 +311,7 @@ MODULE_SUFFIX = """
 }
 """
 
-SIMPLE_TYPE_MAP = {"str": "String", "int": "i64", "bool": "bool", "float": "f64"}
+SIMPLE_TYPE_MAP = {"str": "String", "int": "i64", "bool": "bool", "float": "f64", "Any": "JsonValue"}
 
 CONTAINER_TYPE_MAP = {"List": "Vec", "Optional": "Option"}
 
