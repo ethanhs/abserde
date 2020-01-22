@@ -9,4 +9,4 @@ class Test:
 @abserde
 class Test2:
     age: int
-    foo: Union[Test, int]
+    foo: Union[Test, List[int]]

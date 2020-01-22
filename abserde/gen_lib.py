@@ -410,19 +410,23 @@ class StubVisitor(NodeVisitor):
     def write_enum(self, name: str, members: List[str]) -> None:
         self.write(ENUM_IMPL_PREFIX.format(name=name))
         for elt in members:
-            self.writeline(" " * 12 + f"{name}::{elt}Type(v) => v.into_py(py),")
+            typ = elt.replace('<', '').replace('>', '')
+            self.writeline(" " * 12 + f"{name}::{typ}Type(v) => v.into_py(py),")
         self.write(ENUM_IMPL_SUFFIX.format(name=name))
         for elt in members:
-            self.writeline(f"if let Ok(t) = ob.extract::<{elt}>() {{ Ok({name}::{elt}Type(t)) }} else ")
+            typ = elt.replace('<', '').replace('>', '')
+            self.writeline(f"if let Ok(t) = ob.extract::<{elt}>() {{ Ok({name}::{typ}Type(t)) }} else ")
         types = " ".join(members)
         self.writeline(f'{{ Err(exceptions::ValueError::py_err("Could not convert object to any of {types}.")) }}')
         self.writeline(ENUM_DECL.format(name=name))
         for elt in members:
-            self.writeline("#[allow(non_camel_case_types)]\n" + " " * 4 + f"{elt}Type({elt}),")
+            typ = elt.replace('<', '').replace('>', '')
+            self.writeline("#[allow(non_camel_case_types)]\n" + " " * 4 + f"{typ}Type({elt}),")
         self.writeline("}")
         self.writeline(ENUM_IMPL_DEBUG_PREFIX.format(name=name))
         for elt in members:
-            self.writeline(" " * 12 + f'{name}::{elt}Type(v) => write!(f, "{{:?}}", v),')
+            typ = elt.replace('<', '').replace('>', '')
+            self.writeline(" " * 12 + f'{name}::{typ}Type(v) => write!(f, "{{:?}}", v),')
         self.writeline(ENUM_IMPL_DEBUG_SUFFIX)
 
     def visit_Module(self, n: Module) -> None:
