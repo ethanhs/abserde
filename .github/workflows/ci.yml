@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         name: [py36, py37, py38]
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
         include:
           - name: py36
             python-version: 3.6
