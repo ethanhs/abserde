@@ -1,5 +1,5 @@
 from abserde import abserde
-
+from typing import Any
 
 @abserde
 class Test:
@@ -9,6 +9,6 @@ class Test:
 
 @abserde
 class Test2:
-    name: str
+    name: Any
     age: int
     foo: Test

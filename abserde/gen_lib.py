@@ -329,13 +329,24 @@ def invalid_type(typ: str, container: Optional[str] = None) -> NoReturn:
         msg = f"The type {typ} is not valid."
     raise InvalidTypeError(msg)
 
+class ClassGatherer(NodeVisitor):
+    classes: List[str]
+
+    def __init__(self):
+        self.classes = []
+
+    def visit_ClassDef(self, n: ClassDef) -> None:
+        self.classes.append(n.name)
+
+    def get_classes(self, n) -> List[str]:
+        self.visit(n)
+        return self.classes
 
 class StubVisitor(NodeVisitor):
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, classes: Optional[List[str]] = None):
         self.config = config
         self.lib = ""
-        self.classes: List[str] = []
-        self.classes_attrs: Set[Tuple[str, str]] = set()
+        self.classes = classes or []
 
     def convert(self, n: AST) -> str:
         """Turn types like List[str] into types like Vec<String>"""
@@ -403,12 +414,10 @@ class StubVisitor(NodeVisitor):
                 assert isinstance(item.target, Name)
                 name = item.target.id
                 annotation = self.convert(item.annotation)
-                self.classes_attrs.add((name, annotation))
                 attributes.add((name, annotation))
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
                 self.writeline(" " * 4 + f"pub {name}: {annotation},")
         self.writeline("}")
-        self.classes.append(n.name)
         # Then we write out the class implementation.
         self.write(PYCLASS_PREFIX.format(name=n.name))
         args = ", ".join(f"{name}: {typ}" for name, typ in attributes)
@@ -431,7 +440,6 @@ class StubVisitor(NodeVisitor):
         )
         self.write(OBJECT_PROTO.format(name=n.name))
         self.write(DUNDER_STR)
-        self.write(DUNDER_BYTES)
         repr_args = ", ".join(f"{name}={{{name}:?}}" for name, _ in attributes)
         names = ", ".join(f"{name} = self.{name}" if not typ.startswith('Py<')
                           else f"{name} = self.{name}.as_ref(py).deref()"
@@ -442,7 +450,8 @@ class StubVisitor(NodeVisitor):
 
 
 def gen_bindings(src: str, config: Config) -> str:
-    visitor = StubVisitor(config)
     mod = parse(src)
     assert isinstance(mod, Module)
+    gatherer = ClassGatherer()
+    visitor = StubVisitor(config, gatherer.get_classes(mod))
     return visitor.generate_lib(mod)
