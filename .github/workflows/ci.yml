@@ -16,6 +16,7 @@ jobs:
   tests:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         name: [py36, py37, py38]
         os: [windows-latest, ubuntu-latest]
