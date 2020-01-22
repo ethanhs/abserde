@@ -46,5 +46,5 @@ jobs:
     - name: install multiclass for tests
       run: python -m abserde examples/multiclass.pyi
     - name: run tests
-      run: python -m tox -e ${{ matrix.tox }
+      run: python -m tox -e ${{ matrix.tox }}
       
