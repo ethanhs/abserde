@@ -11,14 +11,15 @@ from typing import Tuple
 from typing import List
 from typing import NoReturn
 from typing import Optional
+from typing import Sequence
+from typing import Set
 
 from abserde.config import Config
 
 
 LIB_USES = """
 #![feature(specialization)]
-#[allow(unused_imports)]
-#[allow(unused_variables)]
+#[allow(dead_code)]
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use pyo3::exceptions;
@@ -28,12 +29,12 @@ use pyo3::create_exception;
 use pyo3::PyMappingProtocol;
 use pyo3::ffi::Py_TYPE;
 use pyo3::AsPyPointer;
-use pyo3::type_object::PyTypeInfo;
 use pyo3::PyTryFrom;
 use pyo3::types::PyDict;
 
-use serde::{Deserialize, Serialize};
 
+use serde::{Deserialize, Serialize};
+#[allow(unused_imports)]
 use std::ops::Deref;
 use std::fmt;
 """
@@ -149,20 +150,40 @@ impl<'p> PyMappingProtocol<'p> for {name} {{
 """
 
 ENUM_IMPL_PREFIX = """
-impl IntoPy<PyObject> for Classes {
-    fn into_py(self, py: Python) -> PyObject {
-        match self {
+impl IntoPy<PyObject> for {name} {{
+    fn into_py(self, py: Python) -> PyObject {{
+        match self {{
 """
 
 ENUM_IMPL_SUFFIX = """
+        }}
+    }}
+}}
+
+impl<'source> pyo3::FromPyObject<'source> for {name} {{
+    fn extract(ob: &'source PyAny) -> pyo3::PyResult<{name}> {{
+"""
+
+ENUM_DECL = """
+    }}
+}}
+
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum {name} {{
+"""
+
+ENUM_IMPL_DEBUG_PREFIX = """
+impl fmt::Debug for {name} {{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {{
+        match self {{
+"""
+        
+ENUM_IMPL_DEBUG_SUFFIX = """
         }
     }
 }
-
-
-#[derive(Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Classes {
 """
 
 DUMPS_IMPL_PREFIX = """
@@ -277,7 +298,7 @@ impl<'source> pyo3::FromPyObject<'source> for JsonValue {{
         }} else if let Ok(f) = ob.extract::<f64>() {{
             let flt = match serde_json::Number::from_f64(f) {{
                 Some(v) => Ok(v),
-                None => Err(JSONParseError::py_err("Cannot convert NaN or inf to JSON")),
+                None => Err(exceptions::ValueError::py_err("Cannot convert NaN or inf to JSON")),
             }};
             Ok(JsonValue(serde_json::Value::Number(flt?)))
         }} else if let Ok(b) = ob.extract::<bool>() {{
@@ -295,7 +316,7 @@ impl<'source> pyo3::FromPyObject<'source> for JsonValue {{
         }} else if ob.extract::<PyObject>()?.is_none() {{
             Ok(JsonValue(serde_json::Value::Null))
         }} else {{
-            Err(JSONParseError::py_err("Could not convert object to JSON"))
+            Err(exceptions::ValueError::py_err("Could not convert object to JSON"))
         }}
     }}
 }}
@@ -331,22 +352,31 @@ def invalid_type(typ: str, container: Optional[str] = None) -> NoReturn:
 
 class ClassGatherer(NodeVisitor):
     classes: List[str]
+    unions: Set[Tuple[str, ...]]
 
     def __init__(self):
         self.classes = []
+        self.unions = set()
 
     def visit_ClassDef(self, n: ClassDef) -> None:
         self.classes.append(n.name)
+        for item in n.body:
+            if isinstance(item, AnnAssign):
+                if isinstance(item.annotation, Subscript):
+                    typ = item.annotation
+                    if typ.value.id == "Union":
+                        self.unions.add((n for n in typ.slice.value.elts))
 
-    def get_classes(self, n) -> List[str]:
+    def run(self, n) -> Tuple[List[str], Set[Tuple[str, ...]]]:
         self.visit(n)
-        return self.classes
+        return self.classes, self.unions
 
 class StubVisitor(NodeVisitor):
-    def __init__(self, config: Config, classes: Optional[List[str]] = None):
+    def __init__(self, config: Config, classes: List[str], unions: Set[Tuple[str, ...]]):
         self.config = config
+        self.unions = unions
+        self.classes = classes
         self.lib = ""
-        self.classes = classes or []
 
     def convert(self, n: AST) -> str:
         """Turn types like List[str] into types like Vec<String>"""
@@ -364,6 +394,9 @@ class StubVisitor(NodeVisitor):
         except KeyError:
             invalid_type(typ)
 
+    def is_union(self, item: AST) -> bool:
+        return isinstance(item.annotation, Subscript) and item.annotation.value.id == "Union"
+
     def generate_lib(self, n: Module) -> str:
         self.visit(n)
         return self.lib
@@ -374,17 +407,29 @@ class StubVisitor(NodeVisitor):
     def writeline(self, s: str) -> None:
         self.lib += s + "\n"
 
+    def write_enum(self, name: str, members: List[str]) -> None:
+        self.write(ENUM_IMPL_PREFIX.format(name=name))
+        for elt in members:
+            self.writeline(" " * 12 + f"{name}::{elt}Type(v) => v.into_py(py),")
+        self.write(ENUM_IMPL_SUFFIX.format(name=name))
+        for elt in members:
+            self.writeline(f"if let Ok(t) = ob.extract::<{elt}>() {{ Ok({name}::{elt}Type(t)) }} else ")
+        types = " ".join(members)
+        self.writeline(f'{{ Err(exceptions::ValueError::py_err("Could not convert object to any of {types}.")) }}')
+        self.writeline(ENUM_DECL.format(name=name))
+        for elt in members:
+            self.writeline("#[allow(non_camel_case_types)]\n" + " " * 4 + f"{elt}Type({elt}),")
+        self.writeline("}")
+        self.writeline(ENUM_IMPL_DEBUG_PREFIX.format(name=name))
+        for elt in members:
+            self.writeline(" " * 12 + f'{name}::{elt}Type(v) => write!(f, "{{:?}}", v),')
+        self.writeline(ENUM_IMPL_DEBUG_SUFFIX)
+
     def visit_Module(self, n: Module) -> None:
         self.write(LIB_USES)
         self.generic_visit(n)
         module = self.config.filename
-        self.write(ENUM_IMPL_PREFIX)
-        for cls in self.classes:
-            self.writeline(" " * 12 + f"Classes::{cls}Class(v) => v.into_py(py),")
-        self.write(ENUM_IMPL_SUFFIX)
-        for cls in self.classes:
-            self.writeline(" " * 4 + f"{cls}Class({cls}),")
-        self.writeline("}")
+        self.write_enum("Classes", self.classes)
         self.write(DUMPS_IMPL_PREFIX)
         self.write(" else ".join(DUMPS_FOR_CLS.format(cls=cls) for cls in self.classes))
         self.write(DUMPS_IMPL_SUFFIX)
@@ -409,11 +454,20 @@ class StubVisitor(NodeVisitor):
         # First, we write out the struct and its members
         self.write(STRUCT_PREFIX.format(name=n.name))
         attributes: Set[Tuple[str, str]] = set()
+        # enums that need to be generated later
+        enums: List[Tuple[str, Tuple[str, ...]]] = []
         for item in n.body:
             if isinstance(item, AnnAssign):
                 assert isinstance(item.target, Name)
                 name = item.target.id
-                annotation = self.convert(item.annotation)
+                if self.is_union(item):
+                    id = len(self.unions)
+                    annotation = f'Union{id}'
+                    members = (n for n in item.annotation.slice.value.elts)
+                    self.unions.discard(members)
+                    enums.append((annotation, members))
+                else:
+                    annotation = self.convert(item.annotation)
                 attributes.add((name, annotation))
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
                 self.writeline(" " * 4 + f"pub {name}: {annotation},")
@@ -427,6 +481,9 @@ class StubVisitor(NodeVisitor):
             self.writeline(" " * 16 + f"{name}: {name},")
         self.write(IMPL_NEW_SUFFIX)
         self.writeline("}")
+        # write out needed enum types
+        for name, members in enums:
+            self.write_enum(name, [self.convert(n) for n in members])
         getitem = ("\n" + " " * 12).join(
             f'"{name}" => Ok(self.{name}.clone().into_py(py)),' for name, _ in attributes
         )
@@ -453,5 +510,6 @@ def gen_bindings(src: str, config: Config) -> str:
     mod = parse(src)
     assert isinstance(mod, Module)
     gatherer = ClassGatherer()
-    visitor = StubVisitor(config, gatherer.get_classes(mod))
+    classes, unions = gatherer.run(mod)
+    visitor = StubVisitor(config, classes, unions)
     return visitor.generate_lib(mod)
