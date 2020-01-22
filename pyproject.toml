@@ -7,9 +7,10 @@ include = ["abserde/template_crate/**/*.*", "abserde/template_crate/src"]
 license = "Apache-2.0 OR MIT"
 
 [tool.poetry.dependencies]
-python = ">3.6"
+python = ">3.5"
 click = "^7.0"
 pyo3-pack = "^0.5"
+dataclasses = { version = "^0.7", python = "3.6" }
 
 [tool.poetry.dev-dependencies]
 pytest = "^4.0"
