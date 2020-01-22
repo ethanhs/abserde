@@ -2,6 +2,7 @@ import subprocess
 import sys
 from distutils.dir_util import copy_tree
 from pathlib import Path
+import os
 
 from abserde.config import Config
 
@@ -26,7 +27,9 @@ def generate_crate(mod: str, config: Config) -> None:
     cmd = ["pyo3-pack", "build", "-i", sys.executable, "--manylinux", "1-unchecked"]
     if not config.debug:
         cmd.append("--release")
-    p = subprocess.run(cmd, capture_output=True, cwd=crate_dir)
+    env = os.environ.copy()
+    env['RUSTFLAGS'] = "-C target-cpu=native"
+    p = subprocess.run(cmd, capture_output=True, cwd=crate_dir, env=env)
     print(p.stdout.decode(), p.stderr.decode())
     wheelhouse = crate_dir / "target" / "wheels"
     if config.debug:

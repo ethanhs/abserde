@@ -14,7 +14,7 @@ pyo3-pack = "^0.5"
 [tool.poetry.dev-dependencies]
 pytest = "^4.0"
 pytest-benchmark="^3.2"
-mypy = "0.740"
+mypy = "0.761"
 pre-commit = "^1.16"
 tox = "^3.10"
 orjson = "^2.0"
