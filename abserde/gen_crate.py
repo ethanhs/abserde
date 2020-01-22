@@ -25,10 +25,10 @@ def generate_crate(mod: str, config: Config) -> None:
     with open(crate_dir / "src" / "lib.rs", "w+") as lib:
         lib.write(mod)
     cmd = ["pyo3-pack", "build", "-i", sys.executable, "--manylinux", "1-unchecked"]
+    env = os.environ.copy()
     if not config.debug:
         cmd.append("--release")
-    env = os.environ.copy()
-    env['RUSTFLAGS'] = "-C target-cpu=native"
+        env['RUSTFLAGS'] = "-C target-cpu=native"
     p = subprocess.run(cmd, capture_output=True, cwd=crate_dir, env=env)
     print(p.stdout.decode(), p.stderr.decode())
     wheelhouse = crate_dir / "target" / "wheels"
