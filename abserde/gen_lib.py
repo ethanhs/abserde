@@ -243,8 +243,10 @@ impl IntoPy<PyObject> for JsonValue {{
             serde_json::Value::Bool(b) => b.into_py(py),
             serde_json::Value::Number(n) => {{
                 if n.is_i64() {{
+                    // should never fail since we just checked it
                     n.as_i64().unwrap().into_py(py)
                 }} else {{
+                    // should never fail since it isn't an integer?
                     n.as_f64().unwrap().into_py(py)
                 }}
             }},
@@ -420,7 +422,7 @@ class StubVisitor(NodeVisitor):
             f'"{name}" => Ok(self.{name}.clone().into_py(py)),' for name, _ in attributes
         )
         setitem = ("\n" + " " * 12).join(
-            f'"{name}" => Ok(self.{name} = value.extract(py).unwrap()),' for name, _ in attributes
+            f'"{name}" => Ok(self.{name} = value.extract(py)?),' for name, _ in attributes
         )
         self.write(
             MAPPING_IMPL.format(
