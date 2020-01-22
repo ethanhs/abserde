@@ -29,7 +29,7 @@ def generate_crate(mod: str, config: Config) -> None:
     if not config.debug:
         cmd.append("--release")
         env['RUSTFLAGS'] = "-C target-cpu=native"
-    p = subprocess.run(cmd, capture_output=True, cwd=crate_dir, env=env)
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=crate_dir, env=env)
     print(p.stdout.decode(), p.stderr.decode())
     wheelhouse = crate_dir / "target" / "wheels"
     if config.debug:
