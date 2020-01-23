@@ -103,6 +103,8 @@ Test2(age=39, name=6, foo=Test(room=3, floor=4))
 
 Initial rough benchmarks (see `tests/test_benchmark.py`) give the following results compared to `ujson`, `orjson` and the stdlib `json`.
 
+The first benchmark tests a small json blob loading/dumping:
+
 ```
 -------------------------------------------------------------------------------------------- benchmark 'dumps': 4 tests -------------------------------------------------------------------------------------------
 Name (time in ns)                   Min                    Max                  Mean                StdDev                Median               IQR             Outliers  OPS (Kops/s)            Rounds  Iterations
@@ -121,7 +123,11 @@ test_abserde_loads_speed       600.0000 (1.50)      62,400.0000 (1.70)       703
 test_orjson_loads_speed        600.0000 (1.50)      54,000.0000 (1.47)       720.7119 (1.47)       819.9132 (1.22)       700.0000 (1.40)       0.0000 (1.0)      761;73156    1,387.5171 (0.68)     277778           1
 test_json_loads_speed        2,100.0000 (5.25)     545,100.0000 (14.81)    2,404.9490 (4.91)     1,722.4939 (2.56)     2,300.0000 (4.60)       0.0000 (2.00)   1674;135227      415.8092 (0.20)     409837           1
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+```
 
+The next benchmark demonstrates that abserde is 2.4x faster at the standard twitter.json benchmark compared to `ujson`!
+
+```
 ---------------------------------------------------------------------------------------- benchmark 'twitter_dumps': 2 tests ----------------------------------------------------------------------------------------
 Name (time in us)                           Min                   Max                  Mean             StdDev                Median                 IQR            Outliers       OPS            Rounds  Iterations
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
