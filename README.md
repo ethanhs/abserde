@@ -38,6 +38,25 @@ And then
 $ poetry run abserde examples/multiclass.pyi
 ```
 
+The multiclass stub file looks like this:
+
+```python
+from abserde import abserde
+from typing import Any
+
+@abserde
+class Test:
+    room: int
+    floor: int
+
+
+@abserde
+class Test2:
+    name: Any
+    age: int
+    foo: Test
+```
+
 You should find a wheel which you can install via:
 ```
 $ poetry run pip install dist/multiclass-*.whl
