@@ -355,6 +355,61 @@ SIMPLE_TYPE_MAP = {
 CONTAINER_TYPE_MAP = {"List": "Vec", "Optional": "Option"}
 
 
+RUST_KEYWORDS = [
+    'abstract',
+    'become',
+    'box',
+    'do',
+    'final',
+    'macro',
+    'override',
+    'priv',
+    'typeof',
+    'unsized',
+    'virtual',
+    'yield',
+    'try',
+    'as',
+    'break',
+    'const',
+    'continue',
+    'crate',
+    'else',
+    'enum',
+    'extern',
+    'false',
+    'fn',
+    'for',
+    'if',
+    'impl',
+    'in',
+    'let',
+    'loop',
+    'match',
+    'mod',
+    'move',
+    'mut',
+    'pub',
+    'ref',
+    'return',
+    'self',
+    'Self',
+    'static',
+    'struct',
+    'super',
+    'trait',
+    'true',
+    'type',
+    'unsafe',
+    'use',
+    'where',
+    'while',
+    'async',
+    'await',
+    'dyn',
+]
+
+
 class InvalidTypeError(Exception):
     pass
 
@@ -411,6 +466,12 @@ class StubVisitor(NodeVisitor):
             return f"{SIMPLE_TYPE_MAP[typ]}"
         except KeyError:
             invalid_type(typ)
+
+    def escape_keywords(self, name):
+        if name in RUST_KEYWORDS:
+            return f'r#{name}'
+        else:
+            return name
 
     def is_union(self, item: AST) -> bool:
         return isinstance(item.annotation, Subscript) and item.annotation.value.id == "Union"
@@ -490,9 +551,10 @@ class StubVisitor(NodeVisitor):
                     enums.append((annotation, members))
                 else:
                     annotation = self.convert(item.annotation)
-                attributes.append((name, annotation))
+                assert annotation is not None, print(n.name, item.target.id)
+                attributes.append((self.escape_keywords(name), annotation))
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
-                self.writeline(" " * 4 + f"pub {name}: {annotation},")
+                self.writeline(" " * 4 + f"pub {self.escape_keywords(name)}: {annotation},")
         self.writeline("}")
         # Then we write out the class implementation.
         self.write(PYCLASS_PREFIX.format(name=n.name))
