@@ -323,12 +323,13 @@ impl<'source> pyo3::FromPyObject<'source> for JsonValue {{
 create_exception!({module}, JSONParseError, exceptions::ValueError);
 
 #[pymodule]
-fn {module}(_py: Python, m: &PyModule) -> PyResult<()> {{
+fn {module}(py: Python, m: &PyModule) -> PyResult<()> {{
 """  # noqa
 
 MODULE_SUFFIX = """
     m.add_wrapped(wrap_pyfunction!(loads))?;
     m.add_wrapped(wrap_pyfunction!(dumps))?;
+    m.add("JSONParseError", py.get_type::<JSONParseError>())?;
     Ok(())
 }
 """
