@@ -6,7 +6,6 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: debug-statements
-      - id: check-added-large-files
       - id: check-ast
       - id: check-builtin-literals
       - id: check-byte-order-marker

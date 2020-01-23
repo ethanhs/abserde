@@ -15,7 +15,7 @@ except ImportError as e:
 @pytest.mark.benchmark(
     group="dumps", max_time=5.0, timer=time.perf_counter, disable_gc=True, warmup=False,
 )
-def test_multiclass_dumps_speed(benchmark):
+def test_abserde_dumps_speed(benchmark):
     n = multiclass.Test(4211, 4)
     benchmark(n.dumps)
 
@@ -23,7 +23,7 @@ def test_multiclass_dumps_speed(benchmark):
 @pytest.mark.benchmark(
     group="loads", max_time=5.0, timer=time.perf_counter, disable_gc=True, warmup=False,
 )
-def test_multiclass_loads_speed(benchmark):
+def test_abserde_loads_speed(benchmark):
     n = multiclass.Test(4211, 4)
     s = multiclass.dumps(n)
     benchmark(multiclass.Test.loads, s)
