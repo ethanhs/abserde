@@ -29,7 +29,7 @@ use pyo3::ffi::Py_TYPE;
 use pyo3::AsPyPointer;
 use pyo3::PyTryFrom;
 use pyo3::types::PyDict;
-
+use pyo3::class::basic::CompareOp;
 
 use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
@@ -47,7 +47,7 @@ impl<'source> pyo3::FromPyObject<'source> for {name} {{
 }}
 
 #[pyclass(dict)]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct {name} {{
 """
 
@@ -62,7 +62,7 @@ impl {name} {{
     fn loads(_cls: &PyType, s: &PyString) -> PyResult<Self> {{
         match serde_json::from_str::<{name}>(&s.to_string_lossy()) {{
             Ok(v) => Ok(v),
-            Err(e) => Err(exceptions::ValueError::py_err(e.to_string())),
+            Err(e) => Err(JSONParseError::py_err(e.to_string())),
         }}
     }}
 """
@@ -101,6 +101,16 @@ DUNDER_BYTES = """
             Ok(v) => Ok(PyBytes::new(gil.python(), &v).into()),
             Err(e) => Err(exceptions::ValueError::py_err(e.to_string()))
         }
+    }
+"""
+
+DUNDER_RICHCMP = """
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        Ok(match op {
+            CompareOp::Eq => self == other,
+            CompareOp::Ne => self != other,
+            _ => false,
+        })
     }
 """
 
@@ -246,7 +256,7 @@ pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {{
     }}
 }}
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(transparent)]
 pub struct JsonValue(serde_json::Value);
 
@@ -465,7 +475,7 @@ class StubVisitor(NodeVisitor):
             return
         # First, we write out the struct and its members
         self.write(STRUCT_PREFIX.format(name=n.name))
-        attributes: Set[Tuple[str, str]] = set()
+        attributes: List[Tuple[str, str]] = []
         # enums that need to be generated later
         enums: List[Tuple[str, Tuple[str, ...]]] = []
         for item in n.body:
@@ -480,7 +490,7 @@ class StubVisitor(NodeVisitor):
                     enums.append((annotation, members))
                 else:
                     annotation = self.convert(item.annotation)
-                attributes.add((name, annotation))
+                attributes.append((name, annotation))
                 self.writeline(" " * 4 + "#[pyo3(get, set)]")
                 self.writeline(" " * 4 + f"pub {name}: {annotation},")
         self.writeline("}")
@@ -514,6 +524,7 @@ class StubVisitor(NodeVisitor):
                           else f"{name} = self.{name}.as_ref(py).deref()"
                           for name, typ in attributes)
         self.write(DUNDER_REPR.format(name=n.name, args=repr_args, attrs=names))
+        self.write(DUNDER_RICHCMP)
         self.writeline("}")
         self.write(DISPLAY_IMPL.format(name=n.name, args=repr_args, attrs=names))
 
