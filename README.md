@@ -101,7 +101,7 @@ Test2(age=39, name=6, foo=Test(room=3, floor=4))
 
 # Performance
 
-Initial rough benchmarks (see `tests/test_benchmark.py`) give the following results:
+Initial rough benchmarks (see `tests/test_benchmark.py`) give the following results compared to `ujson`, `orjson` and the stdlib `json`.
 
 ```
 ---------------------------------------------------------------------------------------------- benchmark 'dumps': 4 tests ----------------------------------------------------------------------------------------------
