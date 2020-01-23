@@ -7,6 +7,7 @@ import ujson
 
 try:
     import multiclass
+    import twitter
 except ImportError as e:
     print("You must run the tests from the environment with all of the examples built.")
     raise e
@@ -81,3 +82,41 @@ def test_json_dumps_speed(benchmark):
     n = multiclass.Test(4211, 4)
     d = json.loads(multiclass.dumps(n))
     benchmark(json.dumps, d)
+
+
+@pytest.mark.benchmark(
+    group="twitter_loads", max_time=5.0, timer=time.perf_counter, disable_gc=True, warmup=False,
+)
+def test_abserde_twitter_loads_speed(benchmark):
+    with open('tests/twitter.json', encoding='utf-8') as f:
+        j = f.read()
+    benchmark(twitter.File.loads, j)
+
+
+@pytest.mark.benchmark(
+    group="twitter_loads", max_time=5.0, timer=time.perf_counter, disable_gc=True, warmup=False,
+)
+def test_ujson_twitter_loads_speed(benchmark):
+    with open('tests/twitter.json', encoding='utf-8') as f:
+        j = f.read()
+    benchmark(ujson.loads, j)
+
+
+@pytest.mark.benchmark(
+    group="twitter_dumps", max_time=5.0, timer=time.perf_counter, disable_gc=True, warmup=False,
+)
+def test_abserde_twitter_dumps_speed(benchmark):
+    with open('tests/twitter.json', encoding='utf-8') as f:
+        j = f.read()
+    data = twitter.File.loads(j)
+    benchmark(data.dumps)
+
+
+@pytest.mark.benchmark(
+    group="twitter_dumps", max_time=5.0, timer=time.perf_counter, disable_gc=True, warmup=False,
+)
+def test_ujson_twitter_dumps_speed(benchmark):
+    with open('tests/twitter.json', encoding='utf-8') as f:
+        j = f.read()
+    data = ujson.loads(j)
+    benchmark(ujson.dumps, data)
