@@ -38,14 +38,6 @@ use std::fmt;
 """
 
 STRUCT_PREFIX = """
-
-impl<'source> pyo3::FromPyObject<'source> for {name} {{
-    fn extract(ob: &'source PyAny) -> pyo3::PyResult<{name}> {{
-        let cls: &{name} = PyTryFrom::try_from(ob)?;
-        Ok(cls.clone())
-    }}
-}}
-
 #[pyclass(dict)]
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct {name} {{
