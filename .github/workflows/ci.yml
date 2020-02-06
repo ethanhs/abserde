@@ -8,6 +8,7 @@ on:
       - LICENSE
       - README.md
       - docs/
+      - tests/*.png
   pull_request:
     paths-ignore:
       - .gitignore
