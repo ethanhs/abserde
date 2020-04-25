@@ -27,7 +27,6 @@ use pyo3::create_exception;
 use pyo3::PyMappingProtocol;
 use pyo3::ffi::Py_TYPE;
 use pyo3::AsPyPointer;
-use pyo3::PyTryFrom;
 use pyo3::types::PyDict;
 use pyo3::class::basic::CompareOp;
 
@@ -73,6 +72,7 @@ IMPL_NEW_SUFFIX = """
 """
 
 OBJECT_PROTO = """
+#[allow(unused)]
 #[pyproto]
 impl<'p> PyObjectProtocol<'p> for {name} {{
 """
@@ -97,10 +97,10 @@ DUNDER_BYTES = """
 """
 
 DUNDER_RICHCMP = """
-    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+    fn __richcmp__(&self, other: Self, op: CompareOp) -> PyResult<bool> {
         Ok(match op {
-            CompareOp::Eq => self == other,
-            CompareOp::Ne => self != other,
+            CompareOp::Eq => *self == other,
+            CompareOp::Ne => *self != other,
             _ => false,
         })
     }
@@ -115,6 +115,7 @@ DUNDER_REPR = """
 """
 
 DISPLAY_IMPL = """
+#[allow(unused)]
 impl fmt::Debug for {name} {{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {{
         let gil = GILGuard::acquire();
@@ -206,8 +207,8 @@ where T: Serialize
 pub fn dumps(c: PyObject, py: Python) -> PyResult<String> {
 """
 DUMPS_FOR_CLS = """
-    if let Ok(o) = c.extract::<&{cls}>(py) {{
-        dumps_impl(o)
+    if let Ok(o) = c.extract::<{cls}>(py) {{
+        dumps_impl(&o)
     }}"""
 DUMPS_IMPL_SUFFIX = """
     else {
@@ -236,7 +237,7 @@ pub fn loads<'a>(s: PyObject, py: Python) -> PyResult<Classes> {{
         }};
         if ty.name() == "bytearray" {{
             let locals = [("bytesobj", s)].into_py_dict(py);
-            let bytes = py.eval("bytes(bytesobj)", None, Some(&locals))?.downcast_ref::<PyBytes>()?;
+            let bytes = py.eval("bytes(bytesobj)", None, Some(&locals))?.downcast::<PyBytes>()?;
             Ok(bytes.as_bytes())
         }} else {{
             Err(exceptions::ValueError::py_err(format!("loads() takes only str, bytes, or bytearray, got {{}}", ty)))

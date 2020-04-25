@@ -7,7 +7,7 @@ include = ["abserde/template_crate/**/*.*", "abserde/template_crate/src"]
 license = "Apache-2.0 OR MIT"
 
 [tool.poetry.dependencies]
-python = ">3.5"
+python = ">3.6"
 click = "^7.0"
 maturin = "^0.7"
 dataclasses = { version = "^0.7", python = "3.6" }
@@ -15,10 +15,10 @@ dataclasses = { version = "^0.7", python = "3.6" }
 [tool.poetry.dev-dependencies]
 pytest = "^4.0"
 pytest-benchmark="^3.2"
-mypy = "0.761"
+mypy = "0.770"
 pre-commit = "^1.16"
 tox = "^3.10"
-orjson = "^2.0"
+orjson = "^2.6"
 ujson = "1.35"
 
 [tool.poetry.plugins."console_scripts"]
